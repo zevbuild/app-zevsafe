@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">ZevSafe</string>
+    <string name="tagline">Zero-Knowledge Offline Vault</string>
+    <string name="encrypt_title">Encrypt Folder</string>
+    <string name="decrypt_title">Decrypt Vault</string>
+    <string name="history_title">Vault Activity</string>
+    <string name="guide_title">Security Guide</string>
+    <string name="password_label">Master Password</string>
+    <string name="password_hint">Min. 8 characters</string>
+    <string name="confirm_password_label">Confirm Master Password</string>
+    <string name="confirm_password_hint">Re-enter password</string>
+    <string name="v2_mode_label">v2 Enhanced Security Mode</string>
+    <string name="v2_mode_subtitle">PBKDF2-SHA512 · 600,000 iterations · Optional Keyfile</string>
+    <string name="keyfile_label">Keyfile (Optional 2nd Factor)</string>
+    <string name="keyfile_desc">Any file acts as a physical key. Without it, the vault cannot be unlocked.</string>
+    <string name="warning_no_recovery">If you lose the password or required keyfile, your files are permanently inaccessible.</string>
+</resources>
