@@ -3,6 +3,8 @@ package com.zevbuild.zevsafe.crypto
 import android.content.Context
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -52,6 +54,7 @@ object CryptoEngine {
     const val BASE_IV_PREFIX_LENGTH = 7
     const val GCM_IV_SIZE = 12
     const val BUFFER_SIZE = 64 * 1024
+    const val SALT_LENGTH = 32
 
     const val MANIFEST_SALT_LENGTH = 32
     const val MANIFEST_IV_LENGTH = 12
@@ -612,48 +615,17 @@ object CryptoEngine {
             val baseIV = header.baseIVPrefix ?: throw IllegalArgumentException("Missing base IV")
             val manifestOffset = header.manifestOffset
 
-            var currentFileOffset = V3_HEADER_SIZE.toLong()
-            var chunkIndex = 0
-
-            // Piped stream to feed decrypted chunks directly to ZipInputStream
-            val pipeIn = java.io.PipedInputStream(1024 * 1024)
-            val pipeOut = java.io.PipedOutputStream(pipeIn)
-
-            kotlinx.coroutines.coroutineScope {
-                val decryptJob = launch(Dispatchers.IO) {
-                pipeOut.use { outPipe ->
-                    val lenBytes = ByteArray(CHUNK_HEADER_SIZE)
-                    while (currentFileOffset < manifestOffset) {
-                        val readLen = inStream.read(lenBytes)
-                        if (readLen != CHUNK_HEADER_SIZE) break
-                        currentFileOffset += CHUNK_HEADER_SIZE
-
-                        val payloadLen = ByteBuffer.wrap(lenBytes).order(ByteOrder.BIG_ENDIAN).int
-                        val encryptedChunkWithTag = ByteArray(payloadLen + TAG_LENGTH)
-                        var readTotal = 0
-                        while (readTotal < encryptedChunkWithTag.size) {
-                            val r = inStream.read(encryptedChunkWithTag, readTotal, encryptedChunkWithTag.size - readTotal)
-                            if (r == -1) break
-                            readTotal += r
-                        }
-                        currentFileOffset += readTotal
-
-                        val isLast = (currentFileOffset >= manifestOffset)
-                        val fullChunk = ByteArray(CHUNK_HEADER_SIZE + encryptedChunkWithTag.size)
-                        System.arraycopy(lenBytes, 0, fullChunk, 0, CHUNK_HEADER_SIZE)
-                        System.arraycopy(encryptedChunkWithTag, 0, fullChunk, CHUNK_HEADER_SIZE, encryptedChunkWithTag.size)
-
-                        val plaintext = decryptChunk(secretKey, fullChunk, baseIV, chunkIndex, isLast, header.salt)
-                        outPipe.write(plaintext)
-                        chunkIndex++
-
-                        val pct = ((currentFileOffset.toFloat() / manifestOffset) * 100f).coerceIn(0f, 95f)
-                        onProgress(pct, "Decrypting chunk $chunkIndex...")
-                    }
-                }
+            val decryptedStream = V3DecryptedInputStream(
+                inStream = inStream,
+                secretKey = secretKey,
+                baseIVPrefix = baseIV,
+                salt = header.salt,
+                manifestOffset = manifestOffset
+            ) { pct ->
+                onProgress(pct, "Decrypting and extracting files (${pct.toInt()}%)...")
             }
 
-            ZipInputStream(pipeIn.buffered()).use { zis ->
+            ZipInputStream(decryptedStream.buffered()).use { zis ->
                 var zipEntry: ZipEntry?
                 while (zis.nextEntry.also { zipEntry = it } != null) {
                     val entry = zipEntry!!
@@ -692,12 +664,83 @@ object CryptoEngine {
                     zis.closeEntry()
                 }
             }
-            decryptJob.join()
-            }
         }
 
         onProgress(100f, "Extraction complete")
         return@withContext entries
+    }
+
+    class V3DecryptedInputStream(
+        private val inStream: InputStream,
+        private val secretKey: SecretKey,
+        private val baseIVPrefix: ByteArray,
+        private val salt: ByteArray,
+        private val manifestOffset: Long,
+        private val onChunkProgress: ((Float) -> Unit)? = null
+    ) : InputStream() {
+        private var currentFileOffset = V3_HEADER_SIZE.toLong()
+        private var chunkIndex = 0
+        private var currentChunkBuffer: ByteArray? = null
+        private var currentChunkPos = 0
+
+        override fun read(): Int {
+            val b = ByteArray(1)
+            val read = read(b, 0, 1)
+            return if (read == -1) -1 else (b[0].toInt() and 0xFF)
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            if (len == 0) return 0
+            if (!ensureBuffer()) return -1
+
+            val available = (currentChunkBuffer?.size ?: 0) - currentChunkPos
+            val toRead = Math.min(len, available)
+            System.arraycopy(currentChunkBuffer!!, currentChunkPos, b, off, toRead)
+            currentChunkPos += toRead
+            return toRead
+        }
+
+        private fun ensureBuffer(): Boolean {
+            while (currentChunkBuffer == null || currentChunkPos >= currentChunkBuffer!!.size) {
+                if (currentFileOffset >= manifestOffset) {
+                    return false
+                }
+                val lenBytes = ByteArray(CHUNK_HEADER_SIZE)
+                var readLen = 0
+                while (readLen < CHUNK_HEADER_SIZE) {
+                    val r = inStream.read(lenBytes, readLen, CHUNK_HEADER_SIZE - readLen)
+                    if (r == -1) break
+                    readLen += r
+                }
+                if (readLen != CHUNK_HEADER_SIZE) return false
+                currentFileOffset += CHUNK_HEADER_SIZE
+
+                val payloadLen = ByteBuffer.wrap(lenBytes).order(ByteOrder.BIG_ENDIAN).int
+                val encryptedChunkWithTag = ByteArray(payloadLen + TAG_LENGTH)
+                var readTotal = 0
+                while (readTotal < encryptedChunkWithTag.size) {
+                    val r = inStream.read(encryptedChunkWithTag, readTotal, encryptedChunkWithTag.size - readTotal)
+                    if (r == -1) break
+                    readTotal += r
+                }
+                if (readTotal != encryptedChunkWithTag.size) return false
+                currentFileOffset += readTotal
+
+                val isLast = (currentFileOffset >= manifestOffset)
+                val fullChunk = ByteArray(CHUNK_HEADER_SIZE + encryptedChunkWithTag.size)
+                System.arraycopy(lenBytes, 0, fullChunk, 0, CHUNK_HEADER_SIZE)
+                System.arraycopy(encryptedChunkWithTag, 0, fullChunk, CHUNK_HEADER_SIZE, encryptedChunkWithTag.size)
+
+                val plaintext = decryptChunk(secretKey, fullChunk, baseIVPrefix, chunkIndex, isLast, salt)
+                currentChunkBuffer = plaintext
+                currentChunkPos = 0
+                chunkIndex++
+
+                val pct = ((currentFileOffset.toFloat() / manifestOffset) * 100f).coerceIn(0f, 98f)
+                onChunkProgress?.invoke(pct)
+            }
+            return true
+        }
     }
 
     suspend fun decryptV1OrV2Vault(

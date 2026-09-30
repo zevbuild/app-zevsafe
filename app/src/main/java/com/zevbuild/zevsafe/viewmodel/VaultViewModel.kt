@@ -128,6 +128,10 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         _selectedEncryptFolderName.value = ""
     }
 
+    fun clearEncryptSelection() {
+        clearSelectedEncryptItems()
+    }
+
     fun setEncryptKeyfile(context: Context, uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -212,7 +216,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         context: Context,
         dir: DocumentFile,
         currentPath: String,
-        items: mutableListOf<SelectedItem>
+        items: MutableList<SelectedItem>
     ) {
         for (file in dir.listFiles()) {
             val relativePath = if (currentPath.isEmpty()) file.name ?: "" else "$currentPath/${file.name}"
@@ -282,6 +286,10 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         _selectedDecryptVaultSize.value = 0L
         _detectedHeader.value = null
         _decryptionResult.value = null
+    }
+
+    fun clearDecryptSelection() {
+        clearDecryptVault()
     }
 
     fun executeEncryption(context: Context, onVaultCreated: (File) -> Unit) {
