@@ -5,15 +5,15 @@ plugins {
 }
 
 android {
-    namespace = "com.example"
+    namespace = "com.zevbuild.zevsafe"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.aistudio.zevsafe.qvkn"
+        applicationId = "com.zevbuild.zevsafe"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "2.0.0"
+        versionCode = 30
+        versionName = "6.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -71,6 +71,8 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(libs.coil.compose)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
 
     testImplementation(libs.junit)
 }

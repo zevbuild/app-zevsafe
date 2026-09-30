@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -9,7 +14,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ZevSafe">
         <activity
-            android:name="com.example.zevsafe.MainActivity"
+            android:name="com.zevbuild.zevsafe.MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.ZevSafe">
@@ -29,11 +34,24 @@
                 <data android:scheme="content" />
                 <data android:scheme="file" />
             </intent-filter>
+
+            <!-- Support sharing files or media directly into ZevSafe to encrypt -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
         </activity>
+
+        <service
+            android:name="com.zevbuild.zevsafe.service.VaultForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.aistudio.zevsafe.qvkn.fileprovider"
+            android:authorities="com.zevbuild.zevsafe.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data

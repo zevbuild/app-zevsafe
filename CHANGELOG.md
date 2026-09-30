@@ -1,5 +1,16 @@
 # Changelog
 
+## Version 6.3.0 — September 30, 2026
+- `New`: Upgraded cryptographic engine to **v3 STREAM AEAD (`ZV3\0`)** with 57-byte container header, 4 MB chunked AES-256-GCM, per-chunk 12B IVs & 42B AAD, and encrypted tail manifest trailer in `CryptoEngine.kt`.
+- `New`: Implemented **Instant Vault Explorer (< 100 ms)** — loads and displays file catalogs instantly from the tail manifest without buffering or decrypting the entire vault payload.
+- `New`: Integrated **AndroidX Media3 (ExoPlayer)** Cinema Media Player for streaming video (`.mp4`, `.webm`, `.mkv`, `.mov`) and audio (`.mp3`, `.wav`, `.flac`) directly in-app with zero disk writes.
+- `New`: Created **`VaultForegroundService`** with ongoing progress notification (MB/s, ETA, progress bar) and `PARTIAL_WAKE_LOCK` for resilient multi-gigabyte (up to 5 GB) operations.
+- `New`: Added Android system intent filters for **`.zev` file associations** (`ACTION_VIEW`) and **Share Target** (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`) in `MainActivity.kt` and `AndroidManifest.xml`.
+- `Security`: Enforced strict zero-knowledge memory architecture — no unencrypted plaintext or passwords touch non-volatile storage.
+- `Fix`: Standardized package identity and application ID to `com.zevbuild.zevsafe`.
+- `UI`: Modernized dark cyber theme with v3 STREAM badges, instant exploration buttons, and live telemetry cards.
+- `Test`: Expanded unit test suite (`CryptoUnitTest.kt`) with 10 comprehensive tests covering chunk IVs, AAD calculations, header parsing, manifest decryption, and tamper detection.
+
 ## Version 3 — July 5, 2026
 - Renamed vault file extension from `.enc` to `.zev`
 - Updated all UI text, file-picker filters, and PowerShell scripts to match

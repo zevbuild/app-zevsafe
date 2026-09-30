@@ -12,41 +12,30 @@
 
 ---
 
-> 🟢 **Current stable release — v3 (`.zev` format):** the most secure version to date.
-> PBKDF2-SHA512 · 600,000 iterations · AES-256-GCM · optional keyfile second factor.
+> 🟢 **Current stable release — v6.3.0 (`.zev` format):** native Android streaming edition.
+> PBKDF2-SHA512 · 600,000 iterations · 4 MB Chunked AES-256-GCM (`ZV3\0`) · Instant <100ms Vault Explorer · Embedded Media3 Cinema Player · Foreground Service · 100% Zero-Knowledge.
 
 ---
 
-## ✨ What is ZevSafe?
+## ✨ What is ZevSafe for Android?
 
-**ZevSafe** is a fully client-side, zero-trust encryption portal. It runs entirely in your browser using the native [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) — no backend, no accounts, no internet connection required after first load.
+**ZevSafe** for Android is a dedicated, zero-trust, client-side encryption application built in **Native Kotlin & Jetpack Compose (Material 3)**. It encrypts and decrypts files, media, and entire folder trees into single portable encrypted vaults (`.zev`) with zero backend dependencies, zero telemetry, and zero tracking.
 
-It supports two encryption modes — **v1 (Standard)** and **v2 (Enhanced)** — and can be installed as a desktop or mobile app via PWA.
-
-**Perfect for:**
-- Encrypting sensitive folders before storing on USB drives or SD cards
-- Sharing encrypted data with others via a shared password
-- Air-gapped / fully offline security workflows
-- Adding a keyfile second factor to vaults beyond just a password
-
----
-
-## 🚀 Features
+### 🚀 Key Features
 
 | Feature | Details |
 |---|---|
-| 🔐 **AES-256-GCM Encryption** | Authenticated military-grade encryption (v1 & v2) |
-| 🔑 **v1 Mode — PBKDF2-SHA256** | 100,000 iterations · 16-byte salt · backward-compatible |
-| 🚀 **v2 Mode — PBKDF2-SHA512** | 600,000 iterations · 32-byte salt · 6× stronger KDF |
-| 🗝️ **Keyfile (2nd Factor)** | Any file acts as a physical key — optional, v2 only |
-| 📁 **Full Folder Support** | Encrypts entire folder trees via in-memory ZIP |
-| 💧 **Drag & Drop** | Drop a folder to encrypt, drop a `.zev` vault to decrypt |
-| 🔄 **Auto-Version Detection** | Decryption auto-detects v1 vs v2 format from magic header |
-| 💪 **Password Strength Meter** | Real-time visual feedback on password strength |
-| 📲 **PWA — Installable App** | Install to home screen / desktop. Works fully offline |
-| 🌐 **100% Offline** | Zero network requests — files and passwords never leave your device |
-| 📦 **Single Portable Output** | Produces one compact `.zev` vault file |
-| 🔓 **Cross-Platform** | Works in any modern browser on Windows, Mac, Linux, Android, iOS |
+| 🔐 **v3 STREAM AEAD (`ZV3\0`)** | 4 MB chunked AES-256-GCM with per-chunk 12B counter IVs and 42B AAD container binding |
+| 🛡️ **PBKDF2-SHA512 (600,000 iters)** | Military-grade key stretching with 32-byte CSPRNG random salt |
+| 🗝️ **Keyfile 2FA (Physical 2nd Factor)** | SHA-256 fingerprint mixed into raw key bytes via bitwise XOR |
+| ⚡ **Instant Vault Explorer (<100ms)** | Reads encrypted tail manifest trailer directly without buffering or decrypting the whole vault |
+| 🎬 **Embedded Cinema Media Player** | Direct playback for decrypted video (`.mp4`, `.mov`, `.webm`, `.mkv`) and audio (`.mp3`, `.wav`, `.flac`) via AndroidX Media3 (ExoPlayer) with zero disk writes |
+| 🔋 **Android Foreground Service** | Persistent notification (MB/s, ETA, progress bar) & WakeLock for 5 GB operations |
+| 📂 **Android System Intents** | Full `.zev` file association (`ACTION_VIEW`) + Share Target (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`) |
+| 🔄 **Tri-Format Compatibility** | Auto-detects and seamlessly decrypts v1 Legacy, v2 Standard, and v3 Streaming vaults |
+| 🌐 **100% Offline & Zero-Knowledge** | Zero network calls; passwords and keys never touch non-volatile disk unencrypted |
+| 🤖 **Automated GitHub Actions CI/CD** | Builds debug and release APKs on every commit with automatic artifact and release publishing |
+
 
 ---
 
