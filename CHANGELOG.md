@@ -10,6 +10,7 @@
 - `Fix`: Standardized package identity and application ID to `com.zevbuild.zevsafe`.
 - `UI`: Modernized dark cyber theme with v3 STREAM badges, instant exploration buttons, and live telemetry cards.
 - `Test`: Expanded unit test suite (`CryptoUnitTest.kt`) with 10 comprehensive tests covering chunk IVs, AAD calculations, header parsing, manifest decryption, and tamper detection.
+- `Docs`: Established comprehensive Project Memory knowledge base under [`PROJECT-MEMORY/`](./PROJECT-MEMORY/) and [`PROJECT_MEMORY.md`](./PROJECT_MEMORY.md) detailing binary cryptographic specifications, system architecture, streaming memory bounding, build & CI/CD pipelines, and development guidelines.
 
 ## Version 3 — July 5, 2026
 - Renamed vault file extension from `.enc` to `.zev`

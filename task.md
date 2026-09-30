@@ -35,8 +35,16 @@ These are the verified, shipped features in the live web app:
 - [x] 3-stage real-time progress tracker UI (Compress → Encrypt/Decrypt → Save pills + detail cards)
 - [x] Password save modal: copy, print sheet, download sheet, browser password-manager save
 - [x] Vault extension renamed from `.enc` → `.zev` across all files and documentation
-- [x] `PROJECT-MEMORY/` Android planning docs archived to `archive/android-native-planning/`
-- [x] Automated GitHub Actions APK build workflow (`.github/workflows/build-apk.yml`) with artifact upload & release publishing
+- [x] Package standardized to `com.zevbuild.zevsafe` (`versionCode = 30`, `versionName = "6.3.0"`)
+- [x] Ported complete **v3 STREAM AEAD (`ZV3\0`)** engine in `CryptoEngine.kt` (57B header, 4MB chunks, 12B counter IVs, 42B AAD, tail manifest parser, sequential `V3DecryptedInputStream`)
+- [x] Bounded memory architecture (< 150 MB peak heap) across multi-GB archives
+- [x] Android 14 `VaultForegroundService` with persistent notification channel, progress bar, speed telemetry, and wake lock
+- [x] AndroidX Media3 (ExoPlayer 1.5.1) Cinema streaming player in `VaultBrowserScreen.kt` with zero disk writes
+- [x] System intent filters (`ACTION_VIEW` for `.zev`, `ACTION_SEND` and `ACTION_SEND_MULTIPLE` for share sheet)
+- [x] Unit test suite in `CryptoUnitTest.kt` (10/10 passing)
+- [x] Automated GitHub Actions APK build & release workflow (`.github/workflows/build-apk.yml`)
+- [x] Tagged and published official `v6.3.0` GitHub Release with `ZevSafe-release.apk` and `ZevSafe-debug.apk`
+- [x] Comprehensive **`PROJECT-MEMORY/`** and root `PROJECT_MEMORY.md` knowledge base established
 
 ---
 
