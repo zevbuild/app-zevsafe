@@ -36,6 +36,7 @@ These are the verified, shipped features in the live web app:
 - [x] Password save modal: copy, print sheet, download sheet, browser password-manager save
 - [x] Vault extension renamed from `.enc` → `.zev` across all files and documentation
 - [x] `PROJECT-MEMORY/` Android planning docs archived to `archive/android-native-planning/`
+- [x] Automated GitHub Actions APK build workflow (`.github/workflows/build-apk.yml`) with artifact upload & release publishing
 
 ---
 
