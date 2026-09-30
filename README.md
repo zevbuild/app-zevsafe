@@ -1,8 +1,10 @@
 # 🔒 ZevSafe — Offline Folder Encryption Portal
 
-> **by [zevbuild](https://github.com/zevbuild) · Encrypt and decrypt entire folders directly in your browser — no server, no uploads, 100% private.**
+> **by [zevbuild](https://github.com/zevbuild) · Encrypt and decrypt entire folders directly in your browser or native Android app — no server, no uploads, 100% private.**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Cloudflare%20Pages-8b5cf6?style=for-the-badge&logo=cloudflare)](https://zevsafe.pages.dev)
+[![Build Android APK](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml/badge.svg)](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml)
+[![Android APK](https://img.shields.io/badge/Android%20APK-Download%20Latest-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-10b981?style=for-the-badge)](LICENSE)
 [![Security: AES-256-GCM](https://img.shields.io/badge/Security-AES--256--GCM-ef4444?style=for-the-badge)](#cryptography)
 [![PWA: Installable](https://img.shields.io/badge/PWA-Installable-8b5cf6?style=for-the-badge)](#pwa--install-as-an-app)
@@ -179,6 +181,41 @@ Once installed, the app works **100% offline** — no internet required for encr
 
 ---
 
+## 🤖 Android Native App & Automated APK Builds
+
+In addition to the web portal and PWA, ZevSafe includes a **native Android application** built with **Kotlin** and **Jetpack Compose** in the [`app/`](app/) directory. It features identical cryptographic specifications and full `.zev` v1 and v2 format compatibility.
+
+### ⬇️ Download the Latest APK
+Every push to `main` automatically builds and signs the latest APK via GitHub Actions:
+1. Open the [**GitHub Actions — Build Android APK**](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml) page.
+2. Click on the latest workflow run marked with a green checkmark (✓).
+3. Scroll down to the **Artifacts** section at the bottom.
+4. Download **`ZevSafe-Android-APKs`** (extract the ZIP to get `ZevSafe-release.apk` and `ZevSafe-debug.apk`).
+5. Open the `.apk` on your Android device to install.
+
+### ⚙️ Automated CI/CD Workflow
+The automated workflow ([`.github/workflows/build-apk.yml`](.github/workflows/build-apk.yml)):
+- Triggers on push to `main`, pull requests, version tags (`v*`), or manual execution (`workflow_dispatch`).
+- Configures JDK 17, Android SDK tools, and Gradle 8.10.2.
+- Runs cryptographic verification unit tests (`CryptoUnitTest`).
+- Assembles both signed `debug` and `release` APKs.
+- Automatically attaches the `.apk` binaries to a GitHub Release whenever a version tag (`v*`) is pushed.
+
+### 🛠️ Building Android App Locally
+```bash
+# Build debug APK (signed with debug keystore, ready for installation)
+gradle assembleDebug
+
+# Build release APK
+gradle assembleRelease
+
+# Generated APKs are placed in:
+# app/build/outputs/apk/debug/app-debug.apk
+# app/build/outputs/apk/release/app-release.apk
+```
+
+---
+
 ## ❓ FAQ — File Size Limits
 
 **Q: How large can files be?**
@@ -202,44 +239,51 @@ Split your folder into smaller sub-folders and encrypt each separately. Or use t
 ## 🗂️ Project Structure
 
 ```
-zevsafe/
-├── index.html          # Main UI — encrypt & decrypt portal
-├── how-to-use.html     # Full user guide & technical reference
-├── app.js              # Encryption/decryption logic (Web Crypto API)
-│                       #   ├─ v1: PBKDF2-SHA256 / 100k / 16-byte salt
-│                       #   └─ v2: PBKDF2-SHA512 / 600k / 32-byte salt + keyfile XOR
-├── styles.css          # Dark glassmorphism UI + v2 components + PWA banner
-├── sw.js               # Production Service Worker (Cache-First + SWR strategies)
-├── manifest.json       # Web App Manifest (PWA install, icons, shortcuts)
-├── icon-192.png        # PWA icon — 192×192
-├── icon-512.png        # PWA icon — 512×512
-├── favicon.svg         # Browser tab icon (SVG, any size)
-├── jszip.min.js        # Offline JS library for folder ZIP compression
-├── encrypt.ps1         # (Windows) PowerShell streaming encryption (large files)
-├── decrypt.ps1         # (Windows) PowerShell streaming decryption (large files)
-├── CHANGELOG.md        # Version history
-├── task.md             # Current/ongoing task tracker
-├── WEB_APP_DESIGN.md   # Current web app architecture notes
+app-zevsafe/
+├── .github/
+│   └── workflows/
+│       └── build-apk.yml     # Automated GitHub Actions workflow for APK generation
+├── app/                      # Native Android app module (Kotlin + Jetpack Compose)
+│   ├── src/main/java/        # UI screens, components, and CryptoEngine
+│   ├── src/main/res/         # App icons, strings, themes, and XML paths
+│   ├── src/test/java/        # Cryptographic compatibility unit tests
+│   └── build.gradle.kts      # Android application module build config
+├── index.html                # Main UI — encrypt & decrypt portal
+├── how-to-use.html           # Full user guide & technical reference
+├── app.js                    # Web encryption/decryption logic (Web Crypto API)
+│                             #   ├─ v1: PBKDF2-SHA256 / 100k / 16-byte salt
+│                             #   └─ v2: PBKDF2-SHA512 / 600k / 32-byte salt + keyfile XOR
+├── styles.css                # Dark glassmorphism UI + v2 components + PWA banner
+├── sw.js                     # Production Service Worker (Cache-First + SWR strategies)
+├── manifest.json             # Web App Manifest (PWA install, icons, shortcuts)
+├── icon-192.png              # App icon — 192×192
+├── icon-512.png              # App icon — 512×512
+├── favicon.svg               # Browser tab icon (SVG, any size)
+├── jszip.min.js              # Offline JS library for folder ZIP compression
+├── encrypt.ps1               # (Windows) PowerShell streaming encryption (large files)
+├── decrypt.ps1               # (Windows) PowerShell streaming decryption (large files)
+├── build.gradle.kts          # Root Gradle build configuration
+├── settings.gradle.kts       # Gradle module inclusion & repositories
+├── gradle/
+│   ├── libs.versions.toml    # Dependency version catalog (AGP, Compose, Kotlin)
+│   └── wrapper/              # Gradle wrapper configuration
+├── CHANGELOG.md              # Version history
+├── task.md                   # Current/ongoing task tracker
+├── WEB_APP_DESIGN.md         # Current web app architecture notes
 ├── .gitignore
 └── archive/
-    └── android-native-planning/   # Superseded — early plan to build a native
-        │                          # Android/Kotlin app before pivoting to this
-        │                          # pure browser-based web app. Kept for reference only.
-        ├── PROJECT_PLAN.md
-        ├── CRYPTOGRAPHIC_SPECIFICATIONS.md
-        ├── SHIZUKU_AND_STORAGE_ROUTING.md
-        └── README.md
+    └── android-native-planning/   # Historical native planning notes
 ```
 
 ---
 
 ## 💻 Run Locally
 
-No build step required — pure HTML/JS/CSS:
+No build step required for the web app — pure HTML/JS/CSS:
 
 ```bash
-git clone https://github.com/zevbuild/zevsafe.git
-cd zevsafe
+git clone https://github.com/zevbuild/app-zevsafe.git
+cd app-zevsafe
 
 # Just open index.html in your browser:
 start index.html      # Windows
