@@ -64,9 +64,11 @@
 ### B. State Management Layer (`com.zevbuild.zevsafe.viewmodel`)
 
 * **`VaultViewModel.kt`:**
-  * Exposes reactive state via Kotlin `StateFlow<VaultUiState>`.
+  * Exposes reactive state via Kotlin `StateFlow` (`encryptProgress`, `decryptProgress`, `decryptedFiles`, `terminalLogs`).
   * Manages asynchronous tasks using `viewModelScope` and `Dispatchers.IO`.
-  * Emits live progress events (percent, speed in MB/s, stage name, elapsed time).
+  * **Thread-Safe UI Completion Callbacks:** All completion callbacks (`onSuccess`) are dispatched onto `withContext(Dispatchers.Main)` inside a defensive `try-catch` block. This ensures UI/Intent actions execute safely on the Android main thread and prevents post-operation UI exceptions from falsely triggering encryption/decryption failure states.
+  * **Automatic Public `Downloads` Saving (`saveToPublicDownloads`):** Automatically saves encrypted `.zev` vaults and exported `.zip` archives directly into the device's public `Downloads` folder using `MediaStore.Downloads` on Android 10+ (API 29+) and `Environment.DIRECTORY_DOWNLOADS` on Android 8–9.
+  * **On-Demand Extraction (`extractSingleFileIfNeeded` & `exportDecryptedZip`):** Since v3 STREAM AEAD vaults unlock by reading only the 57-byte header and tail manifest (`entry.file == null`), `VaultViewModel` supports on-demand selective chunk decryption for individual files (`extractSingleFileIfNeeded`) and streaming full-archive export (`exportDecryptedZip`) when requested in `VaultBrowserScreen` or `DecryptScreen`.
   * Coordinates with `VaultForegroundService` to keep operations alive across app backgrounding or screen rotation.
 
 ---
@@ -97,18 +99,21 @@
 * **In-App Cinema Player:**
   * Hosted inside `VaultBrowserScreen.kt`.
   * Plays encrypted videos (`.mp4`, `.mkv`, `.webm`, `.mov`) and audio files (`.mp3`, `.wav`, `.flac`, `.aac`) directly from the vault.
-  * Decrypts chunks sequentially into a custom Media3 `DataSource` backed by `V3DecryptedInputStream`.
-  * **Zero Disk Persistence:** No decrypted media data ever touches flash storage; volatile RAM is freed immediately as playback progresses.
+  * Decrypts chunks sequentially into an in-memory `ByteArrayDataSource` backed by `VaultViewModel.readDecryptedFileBytes()` / `V3DecryptedInputStream`.
+  * **Zero Disk Persistence:** No decrypted media data ever touches flash storage; volatile RAM is freed immediately when the preview dialog is closed.
 
 ---
 
-### F. System Integration & Scoped Storage
+### F. System Integration, `FileProvider` & Scoped Storage
 
-1. **System Share Sheet Integration:**
+1. **System Share Sheet Integration (`Intent` Filters):**
    * Handled via `intent-filter` in `AndroidManifest.xml`:
      * `ACTION_VIEW` for `.zev` MIME types (`application/octet-stream`, `*/*`).
      * `ACTION_SEND` & `ACTION_SEND_MULTIPLE` for receiving photos, videos, or archives directly from other apps to encrypt.
-2. **Storage Access Framework (SAF):**
-   * Uses `ActivityResultContracts.OpenDocument()`, `OpenDocumentTree()`, and `CreateDocument()`.
+2. **`FileProvider` Authority & Outbound Sharing:**
+   * Configured in `AndroidManifest.xml` with dynamic authority `android:authorities="${applicationId}.fileprovider"` (resolving to `com.zevbuild.zevsafe.fileprovider`) and paths defined in `res/xml/file_paths.xml` (`cache-path`, `files-path`, `external-path`).
+   * All screens (`EncryptScreen.kt`, `DecryptScreen.kt`, `VaultBrowserScreen.kt`) dynamically reference `"${context.packageName}.fileprovider"` when generating `content://` URIs via `FileProvider.getUriForFile(...)`. Never hardcode legacy package authorities.
+3. **Storage Access Framework (SAF) & `MediaStore.Downloads`:**
+   * Uses `ActivityResultContracts.GetMultipleContents()`, `OpenDocumentTree()`, and `GetContent()`.
    * Preserves folder hierarchy using `androidx.documentfile.provider.DocumentFile`.
-   * Operates via `ContentResolver.openInputStream()` and `ContentResolver.openOutputStream()`.
+   * Writes final encrypted `.zev` vaults and exported `.zip` archives to the user's `Downloads` directory via `MediaStore.Downloads` while also presenting the Android system share sheet (`Intent.ACTION_SEND`) with `FLAG_GRANT_READ_URI_PERMISSION`.

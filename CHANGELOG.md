@@ -11,7 +11,7 @@
 - `Fix` (`AndroidManifest.xml`, `EncryptScreen.kt`, `DecryptScreen.kt`, `VaultBrowserScreen.kt`, `VaultViewModel.kt`): Resolved `IllegalArgumentException: Couldn't find meta-data for provider with authority com.aistudio.zevsafe.qvkn.fileprovider` by synchronizing `FileProvider` authority to `${applicationId}.fileprovider` / `${context.packageName}.fileprovider`, automatically saving encrypted `.zev` vaults and exported `.zip` archives directly to the device's `Downloads` folder via `MediaStore.Downloads`, and dispatching UI completion callbacks safely on `Dispatchers.Main`.
 - `UI`: Modernized dark cyber theme with v3 STREAM badges, instant exploration buttons, and live telemetry cards.
 - `Test`: Expanded unit test suite (`CryptoUnitTest.kt`) with 10 comprehensive tests covering chunk IVs, AAD calculations, header parsing, manifest decryption, and tamper detection.
-- `Docs`: Established comprehensive Project Memory knowledge base under [`PROJECT-MEMORY/`](./PROJECT-MEMORY/) and [`PROJECT_MEMORY.md`](./PROJECT_MEMORY.md) detailing binary cryptographic specifications, system architecture, streaming memory bounding, build & CI/CD pipelines, and development guidelines.
+- `Docs` (`PROJECT_MEMORY.md`, `PROJECT-MEMORY/`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.agents/rules/auto_update_docs.md`): Established comprehensive Project Memory knowledge base and mandatory AI agent synchronization rules detailing binary cryptographic specifications, system architecture, `FileProvider` & `MediaStore.Downloads` integration, streaming memory bounding, build & CI/CD pipelines, and development guidelines so any AI agent can immediately understand and maintain the project.
 
 ## Version 3 — July 5, 2026
 - Renamed vault file extension from `.enc` to `.zev`

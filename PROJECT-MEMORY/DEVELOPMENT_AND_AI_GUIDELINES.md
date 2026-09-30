@@ -39,11 +39,12 @@
 
 ## 📋 4. Mandatory AI Agent Update Protocol
 
-Whenever modifying or adding code in `app-zevsafe`:
+Whenever ANY AI agent (Antigravity, Gemini, Cursor, Windsurf, Claude, Copilot) modifies, adds, refactors, or fixes code in `app-zevsafe`:
 
-1. **Update `CHANGELOG.md`:** Document changes under the active version with categorized tags (`New`, `UI`, `Security`, `Perf`, `Fix`).
-2. **Update `README.md`:** Keep version badges, feature tables, and usage instructions synchronized.
-3. **Verify Unit Tests:** Always run unit tests before concluding:
+1. **Update `PROJECT_MEMORY.md` & `PROJECT-MEMORY/*.md`:** Immediately document any architectural, component, cryptographic, I/O, or build changes in `PROJECT_MEMORY.md` and the corresponding files under `PROJECT-MEMORY/` so that any future AI agent has 100% accurate, up-to-date context.
+2. **Update `CHANGELOG.md`:** Document changes under the active version with categorized tags (`New`, `UI`, `Security`, `Perf`, `Fix`).
+3. **Update `README.md`:** Keep version badges, feature tables, and usage instructions synchronized.
+4. **Verify Unit Tests:** Always run unit tests before concluding:
    ```bash
    ./gradlew test
    ```

@@ -4,6 +4,9 @@
 > **Package Identity:** `com.zevbuild.zevsafe`  
 > **Release Version:** `v6.3.0` (Build `30`) · **Target SDK:** 35 · **Min SDK:** 26
 
+> **🤖 MANDATORY AI AGENT RULE:**  
+> Whenever **ANY** AI agent (Antigravity, Gemini, Cursor, Windsurf, Claude, Copilot) modifies, adds, refactors, or fixes any code or configuration in this repository, you **MUST AUTOMATICALLY UPDATE `PROJECT_MEMORY.md` AND THE RELEVANT FILES IN `PROJECT-MEMORY/`** (alongside `CHANGELOG.md` and `README.md`) before finishing your task. This ensures any future AI agent can immediately understand the exact current state of the project.
+
 ---
 
 ## 📌 Executive Summary
@@ -22,7 +25,7 @@ Comprehensive technical documentation is maintained under the [`PROJECT-MEMORY/`
    Complete binary specification: 57-byte container header, 600,000-round PBKDF2-SHA512 key derivation, Keyfile 2FA XOR mixing, 4 MB chunk STREAM AEAD, 12-byte counter IVs, 42-byte AAD binding, encrypted tail manifest, and backward compatibility with v2/v1.
 
 2. 🏗️ [**Architecture & System Components**](./PROJECT-MEMORY/ARCHITECTURE_AND_COMPONENTS.md)  
-   Layered architecture overview: Jetpack Compose Material 3 UI (`ui/`), ViewModel reactive state machine (`viewmodel/`), Android 14 `VaultForegroundService` (`service/`), `CryptoEngine` (`crypto/`), AndroidX Media3 ExoPlayer Cinema streaming player, and Storage Access Framework (SAF).
+   Layered architecture overview: Jetpack Compose Material 3 UI (`ui/`), ViewModel reactive state machine (`viewmodel/`), Android 14 `VaultForegroundService` (`service/`), `CryptoEngine` (`crypto/`), AndroidX Media3 ExoPlayer Cinema streaming player, `FileProvider` (`${applicationId}.fileprovider`), and automatic `MediaStore.Downloads` saving.
 
 3. ⚡ [**Streaming Pipeline & Memory Bounds**](./PROJECT-MEMORY/STREAMING_AND_MEMORY_BOUNDS.md)  
    Memory bounding strategy keeping peak JVM heap under 150 MB across 5 GB+ datasets. Details why pull-based `V3DecryptedInputStream` was selected over asynchronous coroutine pipes to eliminate deadlocks and buffer overruns.
@@ -31,7 +34,7 @@ Comprehensive technical documentation is maintained under the [`PROJECT-MEMORY/`
    Gradle Kotlin DSL configuration, AGP 8.2.2, compileSdk 35, ProGuard rules, local build commands (`./gradlew assembleRelease`), and automated GitHub Actions workflow (`.github/workflows/build-apk.yml`) for publishing tagged APK releases.
 
 5. 🛡️ [**Development & AI Agent Guidelines**](./PROJECT-MEMORY/DEVELOPMENT_AND_AI_GUIDELINES.md)  
-   Non-negotiable security constraints: zero network permissions, zero telemetry, bounded memory usage, no disk plaintext leaks, bit-identical cross-platform compatibility, unit test verification, and documentation synchronization.
+   Non-negotiable security constraints: zero network permissions, zero telemetry, bounded memory usage, no disk plaintext leaks, bit-identical cross-platform compatibility, unit test verification, and mandatory Project Memory + Changelog synchronization.
 
 ---
 
@@ -47,6 +50,7 @@ Comprehensive technical documentation is maintained under the [`PROJECT-MEMORY/`
 | **AAD Length** | 42 bytes (Prefix, IV prefix, chunk index, chunk length, last-chunk flag, manifest offset, keyfile tag) |
 | **Peak Heap Bound** | < 150 MB RAM across multi-GB archives |
 | **Background Processing** | Android 14 `ForegroundService` with `dataSync` type & partial wake lock |
-| **Media Player** | AndroidX Media3 (ExoPlayer 1.5.1) with in-memory streaming |
+| **Media Player** | AndroidX Media3 (ExoPlayer 1.5.1) with in-memory `ByteArrayDataSource` streaming |
+| **Output & Sharing** | Auto-saves `.zev` & `.zip` to `Downloads` (`MediaStore.Downloads`) + System Share Sheet via `FileProvider` (`${applicationId}.fileprovider`) |
 | **System Intents** | `ACTION_VIEW` (.zev files), `ACTION_SEND` / `ACTION_SEND_MULTIPLE` (share sheet) |
 | **Network Stack** | Completely absent (`android.permission.INTERNET` not present) |
