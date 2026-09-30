@@ -507,19 +507,20 @@ fun DecryptScreen(
 
                             OutlinedButton(
                                 onClick = {
-                                    val zipFile = File(context.cacheDir, "${res.vaultName.substringBeforeLast('.')}_decrypted.zip")
-                                    if (zipFile.exists()) {
-                                        val uri = FileProvider.getUriForFile(
-                                            context,
-                                            "com.aistudio.zevsafe.qvkn.fileprovider",
-                                            zipFile
-                                        )
-                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "application/zip"
-                                            putExtra(Intent.EXTRA_STREAM, uri)
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                        context.startActivity(Intent.createChooser(sendIntent, "Export Decrypted ZIP"))
+                                    viewModel.exportDecryptedZip(context) { zipFile ->
+                                        try {
+                                            val uri = FileProvider.getUriForFile(
+                                                context,
+                                                "${context.packageName}.fileprovider",
+                                                zipFile
+                                            )
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "application/zip"
+                                                putExtra(Intent.EXTRA_STREAM, uri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            context.startActivity(Intent.createChooser(sendIntent, "Export Decrypted ZIP"))
+                                        } catch (_: Exception) {}
                                     }
                                 },
                                 shape = RoundedCornerShape(10.dp),

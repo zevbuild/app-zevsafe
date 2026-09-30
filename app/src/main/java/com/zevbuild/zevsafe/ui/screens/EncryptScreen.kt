@@ -526,18 +526,18 @@ fun EncryptScreen(
             Button(
                 onClick = {
                     viewModel.executeEncryption(context) { vaultFile ->
-                        // Offer sharing or saving vault file
-                        val uri = FileProvider.getUriForFile(
-                            context,
-                            "com.aistudio.zevsafe.qvkn.fileprovider",
-                            vaultFile
-                        )
-                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "application/octet-stream"
-                            putExtra(Intent.EXTRA_STREAM, uri)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }
                         try {
+                            // Offer sharing or saving vault file
+                            val uri = FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                vaultFile
+                            )
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/octet-stream"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
                             context.startActivity(Intent.createChooser(sendIntent, "Share or Save .zev Vault"))
                         } catch (_: Exception) {}
                     }

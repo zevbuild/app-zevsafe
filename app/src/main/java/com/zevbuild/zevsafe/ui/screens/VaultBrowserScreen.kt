@@ -202,24 +202,30 @@ fun VaultBrowserScreen(
                             entry = fileEntry,
                             onClick = {
                                 if (!fileEntry.isDirectory) {
-                                    selectedPreviewFile = fileEntry
+                                    viewModel.extractSingleFileIfNeeded(context, fileEntry) { extracted ->
+                                        selectedPreviewFile = extracted
+                                    }
                                 }
                             },
                             onShare = {
-                                fileEntry.localFileUri?.let { uri ->
-                                    val file = File(uri.path ?: "")
-                                    if (file.exists()) {
-                                        val contentUri = FileProvider.getUriForFile(
-                                            context,
-                                            "com.aistudio.zevsafe.qvkn.fileprovider",
-                                            file
-                                        )
-                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                            type = fileEntry.mimeType
-                                            putExtra(Intent.EXTRA_STREAM, contentUri)
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                        context.startActivity(Intent.createChooser(shareIntent, "Share ${fileEntry.name}"))
+                                viewModel.extractSingleFileIfNeeded(context, fileEntry) { extracted ->
+                                    extracted.localFileUri?.let { uri ->
+                                        try {
+                                            val file = File(uri.path ?: "")
+                                            if (file.exists()) {
+                                                val contentUri = FileProvider.getUriForFile(
+                                                    context,
+                                                    "${context.packageName}.fileprovider",
+                                                    file
+                                                )
+                                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                    type = extracted.mimeType
+                                                    putExtra(Intent.EXTRA_STREAM, contentUri)
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                context.startActivity(Intent.createChooser(shareIntent, "Share ${extracted.name}"))
+                                            }
+                                        } catch (_: Exception) {}
                                     }
                                 }
                             }

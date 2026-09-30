@@ -1,8 +1,12 @@
 package com.zevbuild.zevsafe.viewmodel
 
 import android.app.Application
+import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
@@ -28,10 +32,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class VaultViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -292,9 +301,61 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         clearDecryptVault()
     }
 
+    private fun sanitizeFilename(raw: String): String {
+        return raw.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifEmpty { "ZevSafe_Vault" }
+    }
+
+    private fun saveFileToDownloads(context: Context, sourceFile: File, mimeType: String): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, sourceFile.name)
+                    put(MediaStore.Downloads.MIME_TYPE, mimeType)
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val resolver = context.contentResolver
+                val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                val itemUri = resolver.insert(collection, contentValues) ?: return false
+
+                resolver.openOutputStream(itemUri)?.use { outStream ->
+                    FileInputStream(sourceFile).use { inStream ->
+                        val buffer = ByteArray(64 * 1024)
+                        var read: Int
+                        while (inStream.read(buffer).also { read = it } != -1) {
+                            outStream.write(buffer, 0, read)
+                        }
+                    }
+                }
+
+                contentValues.clear()
+                contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
+                resolver.update(itemUri, contentValues, null, null)
+                true
+            } else {
+                @Suppress("DEPRECATION")
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val destFile = File(downloadsDir, sourceFile.name)
+                FileInputStream(sourceFile).use { inStream ->
+                    FileOutputStream(destFile).use { outStream ->
+                        val buffer = ByteArray(64 * 1024)
+                        var read: Int
+                        while (inStream.read(buffer).also { read = it } != -1) {
+                            outStream.write(buffer, 0, read)
+                        }
+                    }
+                }
+                true
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun executeEncryption(context: Context, onVaultCreated: (File) -> Unit) {
         val items = _selectedEncryptItems.value
         val folderName = _selectedEncryptFolderName.value.ifEmpty { "ZevSafe_Vault" }
+        val safeFolderName = sanitizeFilename(folderName)
         val password = _encryptPassword.value
         val confirmPassword = _encryptConfirmPassword.value
         val keyfile = _encryptKeyfile.value
@@ -332,7 +393,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                 "Encrypting \"$folderName\" (${CryptoEngine.formatBytes(totalBytes)})..."
             )
 
-            val outputVaultFile = File(context.cacheDir, "$folderName.zev")
+            val outputVaultFile = File(context.cacheDir, "$safeFolderName.zev")
 
             try {
                 addLog("Starting v3 STREAM AEAD encryption of \"$folderName\"...", LogType.INFO)
@@ -372,11 +433,14 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
 
+                val savedToDownloads = saveFileToDownloads(context, outputVaultFile, "application/octet-stream")
+
                 val totalTime = System.currentTimeMillis() - startTime
                 val vaultSize = outputVaultFile.length()
 
                 _progressState.update { current ->
                     current.copy(
+                        isActive = false,
                         compressStatus = StageStatus.COMPLETED,
                         compressPercent = 100f,
                         cryptoStatus = StageStatus.COMPLETED,
@@ -408,12 +472,23 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                 _showRecoveryDialog.value = true
 
                 addLog("✅ Vault created: \"${outputVaultFile.name}\" (${CryptoEngine.formatBytes(vaultSize)})", LogType.SUCCESS)
-                onVaultCreated(outputVaultFile)
+                if (savedToDownloads) {
+                    addLog("💾 Saved to Downloads: \"${outputVaultFile.name}\"", LogType.SUCCESS)
+                }
+
+                withContext(Dispatchers.Main) {
+                    try {
+                        onVaultCreated(outputVaultFile)
+                    } catch (uiErr: Exception) {
+                        addLog("⚠️ Share dialog notice: ${uiErr.message}", LogType.WARN)
+                    }
+                }
 
             } catch (e: Exception) {
                 addLog("❌ Encryption failed: ${e.message}", LogType.ERROR)
                 _progressState.update {
                     it.copy(
+                        isActive = false,
                         errorMessage = e.message,
                         cryptoStatus = StageStatus.FAILED,
                         currentTitle = "Encryption Failed"
@@ -459,7 +534,11 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                 )
 
                 addLog("✅ Instant Explorer ready: ${catalog.fileCount} files cataloged.", LogType.SUCCESS)
-                onSuccess()
+                withContext(Dispatchers.Main) {
+                    try {
+                        onSuccess()
+                    } catch (_: Exception) {}
+                }
             } catch (e: Exception) {
                 addLog("❌ Instant manifest read failed: ${e.message}", LogType.ERROR)
             }
@@ -469,6 +548,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     fun executeDecryption(context: Context, onDecrypted: (DecryptionResult) -> Unit) {
         val vaultUri = _selectedDecryptVaultUri.value
         val vaultName = _selectedDecryptVaultName.value
+        val safeVaultBase = sanitizeFilename(vaultName.substringBeforeLast('.'))
         val password = _decryptPassword.value
         val keyfile = _decryptKeyfile.value
         val header = _detectedHeader.value
@@ -499,7 +579,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                 "Decrypting \"$vaultName\"..."
             )
 
-            val extractedDir = File(context.filesDir, "extracted_${vaultName.substringBeforeLast('.')}_${System.currentTimeMillis()}").apply { mkdirs() }
+            val extractedDir = File(context.filesDir, "extracted_${safeVaultBase}_${System.currentTimeMillis()}").apply { mkdirs() }
 
             try {
                 addLog("Decrypting vault \"$vaultName\"...", LogType.INFO)
@@ -557,6 +637,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
 
                 _progressState.update {
                     it.copy(
+                        isActive = false,
                         cryptoStatus = StageStatus.COMPLETED,
                         saveStatus = StageStatus.COMPLETED,
                         cryptoPercent = 100f,
@@ -574,12 +655,17 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 addLog("✅ Restored ${fileEntries.size} items (${CryptoEngine.formatBytes(totalExtractedBytes)}).", LogType.SUCCESS)
-                onDecrypted(result)
+                withContext(Dispatchers.Main) {
+                    try {
+                        onDecrypted(result)
+                    } catch (_: Exception) {}
+                }
 
             } catch (e: Exception) {
                 addLog("❌ Decryption failed: ${e.message ?: "Authentication Tag Mismatch or Wrong Password"}", LogType.ERROR)
                 _progressState.update {
                     it.copy(
+                        isActive = false,
                         errorMessage = e.message ?: "Authentication failed",
                         cryptoStatus = StageStatus.FAILED,
                         currentTitle = "Decryption Failed",
@@ -588,6 +674,116 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } finally {
                 VaultForegroundService.stopService(context)
+            }
+        }
+    }
+
+    fun exportDecryptedZip(context: Context, onZipReady: (File) -> Unit) {
+        val currentResult = _decryptionResult.value ?: return
+        val safeVaultBase = sanitizeFilename(currentResult.vaultName.substringBeforeLast('.'))
+        val zipFile = File(context.cacheDir, "${safeVaultBase}_decrypted.zip")
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                addLog("Packaging decrypted files into \"${zipFile.name}\"...", LogType.INFO)
+                var filesToZip = currentResult.files
+
+                // If files were only cataloged via Instant Explore (localFileUri == null), extract them first
+                if (filesToZip.any { !it.isDirectory && it.localFileUri == null }) {
+                    val vaultUri = _selectedDecryptVaultUri.value ?: throw IllegalStateException("Vault URI missing")
+                    val password = _decryptPassword.value
+                    val keyfile = _decryptKeyfile.value
+                    val keyfileHash = if (keyfile != null) {
+                        val (hashBytes, _) = CryptoEngine.hashKeyfile(context, keyfile.uri)
+                        hashBytes
+                    } else null
+                    val extractedDir = File(context.filesDir, "extracted_${safeVaultBase}_${System.currentTimeMillis()}").apply { mkdirs() }
+                    filesToZip = CryptoEngine.decryptV3VaultToDirectory(
+                        context = context,
+                        vaultUri = vaultUri,
+                        outputDir = extractedDir,
+                        password = password.toCharArray(),
+                        keyfileHash = keyfileHash
+                    ) { _, _ -> }
+                    _decryptionResult.value = currentResult.copy(files = filesToZip)
+                }
+
+                ZipOutputStream(FileOutputStream(zipFile).buffered()).use { zos ->
+                    val buffer = ByteArray(64 * 1024)
+                    for (entry in filesToZip) {
+                        if (entry.isDirectory) continue
+                        val localPath = entry.localFileUri?.path ?: continue
+                        val srcFile = File(localPath)
+                        if (!srcFile.exists()) continue
+
+                        val zipEntry = ZipEntry(entry.path)
+                        zos.putNextEntry(zipEntry)
+                        FileInputStream(srcFile).use { fis ->
+                            var read: Int
+                            while (fis.read(buffer).also { read = it } != -1) {
+                                zos.write(buffer, 0, read)
+                            }
+                        }
+                        zos.closeEntry()
+                    }
+                }
+
+                val saved = saveFileToDownloads(context, zipFile, "application/zip")
+                if (saved) {
+                    addLog("💾 Saved ZIP to Downloads: \"${zipFile.name}\"", LogType.SUCCESS)
+                }
+
+                withContext(Dispatchers.Main) {
+                    try {
+                        onZipReady(zipFile)
+                    } catch (_: Exception) {}
+                }
+            } catch (e: Exception) {
+                addLog("❌ Export ZIP failed: ${e.message}", LogType.ERROR)
+            }
+        }
+    }
+
+    fun extractSingleFileIfNeeded(
+        context: Context,
+        entry: DecryptedFileEntry,
+        onReady: (DecryptedFileEntry) -> Unit
+    ) {
+        if (entry.localFileUri != null && File(entry.localFileUri.path ?: "").exists()) {
+            onReady(entry)
+            return
+        }
+        val currentResult = _decryptionResult.value ?: return
+        val vaultUri = _selectedDecryptVaultUri.value ?: return
+        val password = _decryptPassword.value
+        val keyfile = _decryptKeyfile.value
+        val safeVaultBase = sanitizeFilename(currentResult.vaultName.substringBeforeLast('.'))
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                addLog("Extracting \"${entry.name}\" for preview...", LogType.INFO)
+                val keyfileHash = if (keyfile != null) {
+                    val (hashBytes, _) = CryptoEngine.hashKeyfile(context, keyfile.uri)
+                    hashBytes
+                } else null
+                val extractedDir = File(context.filesDir, "extracted_${safeVaultBase}_${System.currentTimeMillis()}").apply { mkdirs() }
+                val extractedEntries = CryptoEngine.decryptV3VaultToDirectory(
+                    context = context,
+                    vaultUri = vaultUri,
+                    outputDir = extractedDir,
+                    password = password.toCharArray(),
+                    keyfileHash = keyfileHash
+                ) { _, _ -> }
+
+                _decryptionResult.value = currentResult.copy(files = extractedEntries)
+                val matched = extractedEntries.firstOrNull { it.path == entry.path || it.name == entry.name }
+                if (matched != null) {
+                    withContext(Dispatchers.Main) {
+                        onReady(matched)
+                    }
+                }
+            } catch (e: Exception) {
+                addLog("❌ Failed to extract \"${entry.name}\": ${e.message}", LogType.ERROR)
             }
         }
     }
