@@ -114,6 +114,8 @@
    * Configured in `AndroidManifest.xml` with dynamic authority `android:authorities="${applicationId}.fileprovider"` (resolving to `com.zevbuild.zevsafe.fileprovider`) and paths defined in `res/xml/file_paths.xml` (`cache-path`, `files-path`, `external-path`).
    * All screens (`EncryptScreen.kt`, `DecryptScreen.kt`, `VaultBrowserScreen.kt`) dynamically reference `"${context.packageName}.fileprovider"` when generating `content://` URIs via `FileProvider.getUriForFile(...)`. Never hardcode legacy package authorities.
 3. **Storage Access Framework (SAF) & `MediaStore.Downloads`:**
-   * Uses `ActivityResultContracts.GetMultipleContents()`, `OpenDocumentTree()`, and `GetContent()`.
-   * Preserves folder hierarchy using `androidx.documentfile.provider.DocumentFile`.
+   * Utilizes `ActivityResultContracts.OpenMultipleDocuments()` with seamless fallback to `ActivityResultContracts.OpenDocument()` for single/multi-file selection across diverse Android OEM file pickers, and `OpenDocumentTree()` for directory trees.
+   * Employs resilient 5-tier URI metadata resolution (`VaultViewModel.resolveSelectedItem`): queries `OpenableColumns.DISPLAY_NAME` & `SIZE`, falls back to `DocumentFile.fromSingleUri`, then `Uri.lastPathSegment`, `ParcelFileDescriptor.statSize`, and finally `InputStream.available()` bytes to prevent silent metadata resolution failures from cloud or third-party content providers.
+   * Automatically takes persistable read URI permissions (`FLAG_GRANT_READ_URI_PERMISSION`).
+   * Dynamic STORED entry measurement in `CryptoEngine.kt`: measures actual input stream length during CRC32 calculation to eliminate `ZipException: invalid entry size` when packing precompressed files whose size could not be queried via SAF.
    * Writes final encrypted `.zev` vaults and exported `.zip` archives to the user's `Downloads` directory via `MediaStore.Downloads` while also presenting the Android system share sheet (`Intent.ACTION_SEND`) with `FLAG_GRANT_READ_URI_PERMISSION`.

@@ -3,6 +3,7 @@ package com.zevbuild.zevsafe.viewmodel
 import android.app.Application
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -193,26 +194,107 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setEncryptFiles(context: Context, uris: List<Uri>) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val items = mutableListOf<SelectedItem>()
-            for (uri in uris) {
-                val doc = DocumentFile.fromSingleUri(context, uri) ?: continue
-                val name = doc.name ?: "file"
-                items.add(
-                    SelectedItem(
-                        uri = uri,
-                        name = name,
-                        relativePath = name,
-                        sizeBytes = doc.length(),
-                        isDirectory = false
-                    )
-                )
+    private fun resolveSelectedItem(context: Context, uri: Uri): SelectedItem {
+        var displayName: String? = null
+        var size: Long = 0L
+
+        // 1. Query OpenableColumns via ContentResolver
+        try {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (cursor.moveToFirst()) {
+                    if (nameIndex != -1 && !cursor.isNull(nameIndex)) {
+                        displayName = cursor.getString(nameIndex)
+                    }
+                    if (sizeIndex != -1 && !cursor.isNull(sizeIndex)) {
+                        size = cursor.getLong(sizeIndex)
+                    }
+                }
             }
-            if (items.isNotEmpty()) {
-                _selectedEncryptFolderName.value = if (items.size == 1) items[0].name.substringBeforeLast('.') else "Archive_${items.size}_files"
-                _selectedEncryptItems.value = items
-                addLog("Loaded ${items.size} files for encryption.", LogType.INFO)
+        } catch (_: Exception) {}
+
+        // 2. Fallback to DocumentFile
+        if (displayName.isNullOrBlank() || size <= 0L) {
+            try {
+                val doc = DocumentFile.fromSingleUri(context, uri)
+                if (displayName.isNullOrBlank()) displayName = doc?.name
+                if (size <= 0L) size = doc?.length() ?: 0L
+            } catch (_: Exception) {}
+        }
+
+        // 3. Fallback to lastPathSegment
+        if (displayName.isNullOrBlank()) {
+            displayName = uri.lastPathSegment?.substringAfterLast('/') ?: "file"
+        }
+
+        // 4. Fallback to ParcelFileDescriptor statSize if size is still 0
+        if (size <= 0L) {
+            try {
+                context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                    val statSize = pfd.statSize
+                    if (statSize > 0) size = statSize
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 5. Fallback to stream available bytes if size is still 0
+        if (size <= 0L) {
+            try {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    val avail = stream.available().toLong()
+                    if (avail > 0) size = avail
+                }
+            } catch (_: Exception) {}
+        }
+
+        val finalName = displayName?.ifBlank { "file" } ?: "file"
+
+        // Persist read URI permission if the platform/provider allows it
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (_: Exception) {}
+
+        return SelectedItem(
+            uri = uri,
+            name = finalName,
+            relativePath = finalName,
+            sizeBytes = size.coerceAtLeast(0L),
+            isDirectory = false
+        )
+    }
+
+    fun setEncryptFiles(context: Context, uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val items = mutableListOf<SelectedItem>()
+                for (uri in uris) {
+                    try {
+                        items.add(resolveSelectedItem(context, uri))
+                    } catch (e: Exception) {
+                        addLog("Warning: Could not resolve file URI: ${e.message}", LogType.WARN)
+                    }
+                }
+                if (items.isNotEmpty()) {
+                    val folderName = if (items.size == 1) {
+                        val baseName = items[0].name.substringBeforeLast('.', "")
+                        if (baseName.isNotBlank()) baseName else items[0].name
+                    } else {
+                        "Archive_${items.size}_files"
+                    }
+                    _selectedEncryptFolderName.value = folderName
+                    _selectedEncryptItems.value = items
+                    val totalBytes = items.sumOf { it.sizeBytes }
+                    addLog("Loaded ${items.size} file(s) (${CryptoEngine.formatBytes(totalBytes)}) for encryption.", LogType.INFO)
+                } else {
+                    addLog("No files could be loaded from the selection.", LogType.ERROR)
+                }
+            } catch (e: Exception) {
+                addLog("Failed to process selected files: ${e.message}", LogType.ERROR)
             }
         }
     }

@@ -525,16 +525,19 @@ object CryptoEngine {
 
                     if (isPrecompressed) {
                         zipEntry.method = ZipEntry.STORED
-                        zipEntry.size = item.sizeBytes
-                        zipEntry.compressedSize = item.sizeBytes
+                        var actualSize = 0L
 
-                        // Calculate CRC32 first for STORED entry
+                        // Calculate CRC32 and measure exact byte length for STORED entry
                         context.contentResolver.openInputStream(item.uri)?.use { inStream ->
                             var read: Int
                             while (inStream.read(ioBuffer).also { read = it } != -1) {
                                 crc.update(ioBuffer, 0, read)
+                                actualSize += read
                             }
-                        }
+                        } ?: throw java.io.IOException("Cannot open input stream for ${item.name}")
+
+                        zipEntry.size = actualSize
+                        zipEntry.compressedSize = actualSize
                         zipEntry.crc = crc.value
                     }
 

@@ -33,6 +33,7 @@
 | 🎬 **Embedded Cinema Media Player** | Direct playback for decrypted video (`.mp4`, `.mov`, `.webm`, `.mkv`) and audio (`.mp3`, `.wav`, `.flac`) via AndroidX Media3 (ExoPlayer) with zero disk writes |
 | 🔋 **Android Foreground Service** | Persistent notification (MB/s, ETA, progress bar) & WakeLock for 5 GB operations |
 | 📂 **Android System Intents** | Full `.zev` file association (`ACTION_VIEW`) + Share Target (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`) |
+| 📁 **Resilient File & Folder Picker** | Interactive dropzone, dual OpenDocument/OpenMultipleDocuments contracts, and 5-tier SAF URI fallback |
 | 🔄 **Tri-Format Compatibility** | Auto-detects and seamlessly decrypts v1 Legacy, v2 Standard, and v3 Streaming vaults |
 | 🌐 **100% Offline & Zero-Knowledge** | Zero network calls; passwords and keys never touch non-volatile disk unencrypted |
 | 🤖 **Automated GitHub Actions CI/CD** | Builds debug and release APKs on every commit with automatic artifact and release publishing |

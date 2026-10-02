@@ -53,6 +53,7 @@ Comprehensive technical documentation is maintained under the [`PROJECT-MEMORY/`
 | **Media Player** | AndroidX Media3 (ExoPlayer 1.5.1) with in-memory `ByteArrayDataSource` streaming |
 | **Output & Sharing** | Auto-saves `.zev` & `.zip` to `Downloads` (`MediaStore.Downloads`) + System Share Sheet via `FileProvider` (`${applicationId}.fileprovider`) |
 | **System Intents** | `ACTION_VIEW` (.zev files), `ACTION_SEND` / `ACTION_SEND_MULTIPLE` (share sheet) |
+| **File Picker & SAF** | Resilient 5-tier fallback URI resolution (`OpenableColumns`, `DocumentFile`, `lastPathSegment`, `statSize`, `InputStream.available`), dual contract (`OpenMultipleDocuments` + `OpenDocument`), interactive dropzone UX |
 | **Brand Assets** | Orbit Concept brand identity in `assets/`: master vector `zevsafe-logo.svg`, quantized 512×512 logo (`.png`, `.webp`), squircle app icons (`icon-512`, `icon-192`), cyber-vault hero graphic, vector `favicon.svg`, and Android `ic_launcher_foreground.xml`. |
 | **Network Stack** | Completely absent (`android.permission.INTERNET` not present) |
 

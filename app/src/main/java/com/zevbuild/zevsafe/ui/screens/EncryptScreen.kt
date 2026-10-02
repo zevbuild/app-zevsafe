@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -124,6 +126,24 @@ fun EncryptScreen(
         }
     }
 
+    val singleFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { viewModel.setEncryptFiles(context, listOf(it)) }
+    }
+
+    val launchFilesPicker: () -> Unit = {
+        try {
+            filePickerLauncher.launch(arrayOf("*/*"))
+        } catch (_: Exception) {
+            try {
+                singleFilePickerLauncher.launch(arrayOf("*/*"))
+            } catch (e: Exception) {
+                Toast.makeText(context, "Could not open file picker: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     val keyfilePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -165,6 +185,7 @@ fun EncryptScreen(
                             ),
                             RoundedCornerShape(16.dp)
                         )
+                        .clickable { launchFilesPicker() }
                         .padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -181,7 +202,7 @@ fun EncryptScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.FolderOpen,
-                                contentDescription = "Select Folder",
+                                contentDescription = "Select Files or Folder",
                                 tint = PurpleLight,
                                 modifier = Modifier.size(30.dp)
                             )
@@ -196,7 +217,7 @@ fun EncryptScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Preserves complete directory tree structure",
+                            text = "Tap here or choose files / folders below",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary
                         )
@@ -205,8 +226,18 @@ fun EncryptScreen(
 
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Button(
-                                onClick = { folderPickerLauncher.launch(null) },
+                                onClick = { launchFilesPicker() },
                                 colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.testTag("select_files_btn")
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Select Files", fontSize = 13.sp)
+                            }
+
+                            OutlinedButton(
+                                onClick = { folderPickerLauncher.launch(null) },
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.testTag("select_folder_btn")
                             ) {
@@ -214,22 +245,13 @@ fun EncryptScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("Browse Folder", fontSize = 13.sp)
                             }
-
-                            OutlinedButton(
-                                onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.testTag("select_files_btn")
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Multiple Files", fontSize = 13.sp)
-                            }
                         }
                     }
                 }
             } else {
                 // Selected item card
                 val totalBytes = selectedItems.sumOf { it.sizeBytes }
+                val isSingleFile = selectedItems.size == 1
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -252,22 +274,24 @@ fun EncryptScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Folder,
-                                contentDescription = "Folder",
+                                imageVector = if (isSingleFile) Icons.Default.InsertDriveFile else Icons.Default.Folder,
+                                contentDescription = if (isSingleFile) "File" else "Folder",
                                 tint = PurpleLight,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
                             Text(
-                                text = folderName,
+                                text = if (isSingleFile) selectedItems.first().relativePath else folderName,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "${selectedItems.size} file(s) · ${CryptoEngine.formatBytes(totalBytes)}",
+                                text = "${selectedItems.size} ${if (isSingleFile) "file" else "files"} · ${CryptoEngine.formatBytes(totalBytes)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TealLight
                             )
