@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+  <defs>
+    <linearGradient id="zevGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#14B8A6"/>
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#0A0E1A"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bgGrad)"/>
+  <!-- Padlock Shackle Arch -->
+  <path d="M 44 48 C 44 32, 84 32, 84 48" fill="none" stroke="url(#zevGrad)" stroke-width="9" stroke-linecap="round"/>
+  <!-- Shield Body -->
+  <path d="M 32 46 L 96 46 C 96 46, 98 84, 64 102 C 30 84, 32 46, 32 46 Z" fill="none" stroke="url(#zevGrad)" stroke-width="8" stroke-linejoin="round"/>
+  <!-- Z Monogram -->
+  <path d="M 49 59 L 79 59 L 52 87 L 79 87" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>
+</svg>

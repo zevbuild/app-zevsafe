@@ -271,7 +271,7 @@ app-zevsafe/
 │   ├── README.md                  # Asset directory documentation
 │   ├── icon-192.png / .webp       # Compressed app launcher icons
 │   ├── icon-512.png / .webp       # Compressed app launcher icons
-│   ├── zevsafe-logo.png / .webp   # High-res 3D metallic brand assets
+│   ├── zevsafe-logo.png / .webp   # Modern corporate business brand identity (512×512)
 │   ├── cyber-vault.png / .webp    # Cyber vault graphics
 │   └── favicon.svg                # Vector brand favicon
 ├── CHANGELOG.md                   # Release history and milestone documentation
