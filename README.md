@@ -267,12 +267,14 @@ app-zevsafe/
 ├── gradle/
 │   ├── libs.versions.toml         # Version catalog (AGP 8.2.2, Compose, Kotlin 1.9.22)
 │   └── wrapper/                   # Gradle wrapper configuration
+├── assets/                        # High-efficiency brand assets & icons (PNG, WebP, SVG)
+│   ├── README.md                  # Asset directory documentation
+│   ├── icon-192.png / .webp       # Compressed app launcher icons
+│   ├── icon-512.png / .webp       # Compressed app launcher icons
+│   ├── zevsafe-logo.png / .webp   # High-res 3D metallic brand assets
+│   ├── cyber-vault.png / .webp    # Cyber vault graphics
+│   └── favicon.svg                # Vector brand favicon
 ├── CHANGELOG.md                   # Release history and milestone documentation
-├── icon-192.png / .webp           # Compressed app launcher icons
-├── icon-512.png / .webp           # Compressed app launcher icons
-├── zevsafe-logo.png / .webp       # High-res 3D metallic brand assets
-├── cyber-vault.png / .webp        # Cyber vault graphics
-├── favicon.svg                    # Vector brand favicon
 └── archive/
     └── android-native-planning/   # Historical native planning notes
 ```

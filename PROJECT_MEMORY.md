@@ -53,5 +53,5 @@ Comprehensive technical documentation is maintained under the [`PROJECT-MEMORY/`
 | **Media Player** | AndroidX Media3 (ExoPlayer 1.5.1) with in-memory `ByteArrayDataSource` streaming |
 | **Output & Sharing** | Auto-saves `.zev` & `.zip` to `Downloads` (`MediaStore.Downloads`) + System Share Sheet via `FileProvider` (`${applicationId}.fileprovider`) |
 | **System Intents** | `ACTION_VIEW` (.zev files), `ACTION_SEND` / `ACTION_SEND_MULTIPLE` (share sheet) |
-| **Brand Assets** | Quantized PNG + WebP (`icon-192`, `icon-512`, `zevsafe-logo`, `cyber-vault`) & minified `favicon.svg` (93.4% reduction: 2.24 MB → 148.9 KB) |
+| **Brand Assets** | Structured `assets/` directory: quantized PNG + WebP (`icon-192`, `icon-512`, `zevsafe-logo`, `cyber-vault`) & minified `favicon.svg` (93.4% reduction: 2.24 MB → 148.9 KB) |
 | **Network Stack** | Completely absent (`android.permission.INTERNET` not present) |
