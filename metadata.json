@@ -1,6 +1,0 @@
-{
-  "name": "ZevSafe",
-  "description": "Zero-Knowledge Offline Folder & File Vault Encryption with AES-256-GCM and PBKDF2.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

@@ -228,39 +228,51 @@ Split your folder into smaller sub-folders and encrypt each separately. Or use t
 
 ## 🗂️ Project Structure
 
-```
+```text
 app-zevsafe/
 ├── .github/
 │   └── workflows/
-│       └── build-apk.yml     # Automated GitHub Actions workflow for APK generation
-├── app/                      # Native Android app module (Kotlin + Jetpack Compose)
-│   ├── src/main/java/        # UI screens, components, and CryptoEngine
-│   ├── src/main/res/         # App icons, strings, themes, and XML paths
-│   ├── src/test/java/        # Cryptographic compatibility unit tests
-│   └── build.gradle.kts      # Android application module build config
-├── index.html                # Main UI — encrypt & decrypt portal
-├── how-to-use.html           # Full user guide & technical reference
-├── app.js                    # Web encryption/decryption logic (Web Crypto API)
-│                             #   ├─ v1: PBKDF2-SHA256 / 100k / 16-byte salt
-│                             #   └─ v2: PBKDF2-SHA512 / 600k / 32-byte salt + keyfile XOR
-├── styles.css                # Dark glassmorphism UI + v2 components + PWA banner
-├── sw.js                     # Production Service Worker (Cache-First + SWR strategies)
-├── manifest.json             # Web App Manifest (PWA install, icons, shortcuts)
-├── icon-192.png              # App icon — 192×192
-├── icon-512.png              # App icon — 512×512
-├── favicon.svg               # Browser tab icon (SVG, any size)
-├── jszip.min.js              # Offline JS library for folder ZIP compression
-├── encrypt.ps1               # (Windows) PowerShell streaming encryption (large files)
-├── decrypt.ps1               # (Windows) PowerShell streaming decryption (large files)
-├── build.gradle.kts          # Root Gradle build configuration
-├── settings.gradle.kts       # Gradle module inclusion & repositories
+│       └── build-apk.yml          # Automated CI/CD workflow building release & debug APKs
+├── app/                           # Native Android app module (Kotlin + Jetpack Compose)
+│   ├── src/main/java/com/zevbuild/zevsafe/
+│   │   ├── crypto/                # CryptoEngine.kt & CryptoModels.kt (v3 STREAM AEAD)
+│   │   ├── service/               # VaultForegroundService.kt (Android 14 dataSync)
+│   │   ├── ui/                    # Screens (HomeScreen, Encrypt, Decrypt, VaultBrowser) & components
+│   │   ├── viewmodel/             # VaultViewModel.kt (MVVM, MediaStore.Downloads auto-saving)
+│   │   └── MainActivity.kt        # Single activity, Material 3, intent handling
+│   ├── src/main/res/              # Adaptive mipmaps, colors, strings, themes, file_paths.xml
+│   ├── src/test/java/             # CryptoUnitTest.kt (100% cryptographic unit test suite)
+│   ├── build.gradle.kts           # Android module build configuration (compileSdk 35)
+│   └── proguard-rules.pro         # ProGuard code shrinking & optimization rules
+├── PROJECT_MEMORY.md              # System Memory & architectural technical reference
+├── PROJECT-MEMORY/                # Comprehensive modular engineering documentation
+│   ├── ARCHITECTURE_AND_COMPONENTS.md
+│   ├── BUILD_RELEASE_AND_CICD.md
+│   ├── CRYPTOGRAPHIC_SPECIFICATION.md
+│   ├── DEVELOPMENT_AND_AI_GUIDELINES.md
+│   ├── README.md
+│   └── STREAMING_AND_MEMORY_BOUNDS.md
+├── docs/                          # Internal task tracker and project indices
+│   ├── README.md                  # Documentation index
+│   └── task.md                    # Active development task tracker
+├── tools/                         # Zero-RAM Windows PC streaming tools (25 GB - 100 GB+)
+│   ├── README.md                  # Usage guide
+│   ├── Encrypt-Vault.bat          # 1-click drag & drop batch folder encryptor
+│   ├── Decrypt-Vault.bat          # 1-click drag & drop batch vault decryptor
+│   ├── encrypt.ps1                # PowerShell streaming encryption engine
+│   └── decrypt.ps1                # PowerShell streaming decryption engine
+├── build.gradle.kts               # Root Gradle build configuration
+├── settings.gradle.kts            # Gradle settings & dependency repositories
+├── gradle.properties              # JVM memory & AndroidX configuration
 ├── gradle/
-│   ├── libs.versions.toml    # Dependency version catalog (AGP, Compose, Kotlin)
-│   └── wrapper/              # Gradle wrapper configuration
-├── CHANGELOG.md              # Version history
-├── task.md                   # Current/ongoing task tracker
-├── WEB_APP_DESIGN.md         # Current web app architecture notes
-├── .gitignore
+│   ├── libs.versions.toml         # Version catalog (AGP 8.2.2, Compose, Kotlin 1.9.22)
+│   └── wrapper/                   # Gradle wrapper configuration
+├── CHANGELOG.md                   # Release history and milestone documentation
+├── icon-192.png / .webp           # Compressed app launcher icons
+├── icon-512.png / .webp           # Compressed app launcher icons
+├── zevsafe-logo.png / .webp       # High-res 3D metallic brand assets
+├── cyber-vault.png / .webp        # Cyber vault graphics
+├── favicon.svg                    # Vector brand favicon
 └── archive/
     └── android-native-planning/   # Historical native planning notes
 ```

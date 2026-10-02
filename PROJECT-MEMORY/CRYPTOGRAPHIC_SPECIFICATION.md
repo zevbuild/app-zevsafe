@@ -3,7 +3,7 @@
 > **Interoperability Standard:** Bit-identical container specification shared across:
 > - Android Native App (`app-zevsafe`)
 > - Web Portal (`zevsafe` / `zevsafe.pages.dev`)
-> - Desktop PowerShell Streaming Engine (`encrypt.ps1` / `decrypt.ps1`)
+> - Desktop PowerShell Streaming Engine (`tools/encrypt.ps1` / `tools/decrypt.ps1`)
 
 ---
 
