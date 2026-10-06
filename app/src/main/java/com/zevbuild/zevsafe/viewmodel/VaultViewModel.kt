@@ -99,6 +99,8 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     private val _decryptionResult = MutableStateFlow<DecryptionResult?>(null)
     val decryptionResult: StateFlow<DecryptionResult?> = _decryptionResult.asStateFlow()
 
+    private var sessionExtractionDir: File? = null
+
     init {
         addLog("ZevSafe security kernel initialized.", LogType.INFO)
         addLog("v3 STREAM AEAD 4 MB chunked engine active.", LogType.INFO)
@@ -140,6 +142,18 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearEncryptSelection() {
         clearSelectedEncryptItems()
+    }
+
+    fun removeEncryptItem(item: SelectedItem) {
+        val updated = _selectedEncryptItems.value.filter { it.uri != item.uri }
+        _selectedEncryptItems.value = updated
+        if (updated.isEmpty()) {
+            _selectedEncryptFolderName.value = ""
+        }
+    }
+
+    fun clearError() {
+        _progressState.update { it.copy(errorMessage = null) }
     }
 
     fun setEncryptKeyfile(context: Context, uri: Uri) {
@@ -338,6 +352,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setDecryptVault(context: Context, uri: Uri) {
         _selectedDecryptVaultUri.value = uri
+        sessionExtractionDir = null
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 var name = "vault.zev"
@@ -377,6 +392,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         _selectedDecryptVaultSize.value = 0L
         _detectedHeader.value = null
         _decryptionResult.value = null
+        sessionExtractionDir = null
     }
 
     fun clearDecryptSelection() {
@@ -502,6 +518,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                             overallPercent = pct,
                             compressPercent = pct,
                             cryptoPercent = pct,
+                            speedMBs = mbPerSec,
                             compressStatus = if (pct >= 50f) StageStatus.COMPLETED else StageStatus.IN_PROGRESS,
                             cryptoStatus = StageStatus.IN_PROGRESS
                         )
@@ -530,6 +547,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                         saveStatus = StageStatus.COMPLETED,
                         savePercent = 100f,
                         overallPercent = 100f,
+                        speedMBs = 0.0,
                         currentTitle = "Vault Created Successfully!",
                         metrics = current.metrics.copy(
                             cryptoTimeMs = totalTime,
@@ -573,6 +591,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                         isActive = false,
                         errorMessage = e.message,
                         cryptoStatus = StageStatus.FAILED,
+                        speedMBs = 0.0,
                         currentTitle = "Encryption Failed"
                     )
                 }
@@ -671,6 +690,9 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                     hashBytes
                 } else null
 
+                val cryptoStart = System.currentTimeMillis()
+                val totalVaultBytes = _selectedDecryptVaultSize.value
+
                 val fileEntries = if (header?.version == VaultVersion.V3) {
                     CryptoEngine.decryptV3VaultToDirectory(
                         context = context,
@@ -679,14 +701,24 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                         password = password.toCharArray(),
                         keyfileHash = keyfileHash
                     ) { pct, msg ->
+                        val elapsed = (System.currentTimeMillis() - cryptoStart) / 1000.0
+                        val processedBytes = (pct / 100.0) * totalVaultBytes
+                        val mbPerSec = if (elapsed > 0 && processedBytes > 0) (processedBytes / (1024.0 * 1024.0)) / elapsed else 0.0
+
                         _progressState.update {
                             it.copy(
                                 cryptoPercent = pct,
                                 overallPercent = pct,
-                                currentTitle = msg
+                                speedMBs = mbPerSec,
+                                currentTitle = if (mbPerSec > 0.0) "$msg (${String.format(Locale.US, "%.1f", mbPerSec)} MB/s)" else msg
                             )
                         }
-                        VaultForegroundService.updateProgress(context, "ZevSafe Streaming Decryption", msg, pct.toInt())
+                        VaultForegroundService.updateProgress(
+                            context,
+                            "ZevSafe Streaming Decryption",
+                            "${pct.toInt()}% · ${String.format(Locale.US, "%.1f", mbPerSec)} MB/s",
+                            pct.toInt()
+                        )
                     }
                 } else {
                     CryptoEngine.decryptV1OrV2Vault(
@@ -696,11 +728,16 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                         password = password.toCharArray(),
                         keyfileHash = keyfileHash
                     ) { pct, msg ->
+                        val elapsed = (System.currentTimeMillis() - cryptoStart) / 1000.0
+                        val processedBytes = (pct / 100.0) * totalVaultBytes
+                        val mbPerSec = if (elapsed > 0 && processedBytes > 0) (processedBytes / (1024.0 * 1024.0)) / elapsed else 0.0
+
                         _progressState.update {
                             it.copy(
                                 cryptoPercent = pct,
                                 overallPercent = pct,
-                                currentTitle = msg
+                                speedMBs = mbPerSec,
+                                currentTitle = if (mbPerSec > 0.0) "$msg (${String.format(Locale.US, "%.1f", mbPerSec)} MB/s)" else msg
                             )
                         }
                     }
@@ -725,6 +762,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                         cryptoPercent = 100f,
                         savePercent = 100f,
                         overallPercent = 100f,
+                        speedMBs = 0.0,
                         currentTitle = "Decryption Complete!",
                         metrics = it.metrics.copy(
                             authTagVerified = true,
@@ -750,6 +788,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                         isActive = false,
                         errorMessage = e.message ?: "Authentication failed",
                         cryptoStatus = StageStatus.FAILED,
+                        speedMBs = 0.0,
                         currentTitle = "Decryption Failed",
                         metrics = it.metrics.copy(authTagVerified = false)
                     )
@@ -841,6 +880,25 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         val keyfile = _decryptKeyfile.value
         val safeVaultBase = sanitizeFilename(currentResult.vaultName.substringBeforeLast('.'))
 
+        val previewCacheDir = File(context.filesDir, "preview_cache_$safeVaultBase").apply { mkdirs() }
+        val targetFile = File(previewCacheDir, entry.name).apply { parentFile?.mkdirs() }
+
+        if (targetFile.exists() && (targetFile.length() > 0 || entry.sizeBytes == 0L)) {
+            val cachedEntry = entry.copy(
+                sizeBytes = targetFile.length(),
+                localFileUri = Uri.fromFile(targetFile),
+                textContentPreview = if (entry.mimeType.startsWith("text/") && targetFile.length() < 256 * 1024) {
+                    try { targetFile.readText(Charsets.UTF_8).take(2000) } catch (_: Exception) { null }
+                } else entry.textContentPreview
+            )
+            val updatedFiles = currentResult.files.map {
+                if (it.path == cachedEntry.path || it.name == cachedEntry.name) cachedEntry else it
+            }
+            _decryptionResult.value = currentResult.copy(files = updatedFiles)
+            onReady(cachedEntry)
+            return
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 addLog("Extracting \"${entry.name}\" for preview...", LogType.INFO)
@@ -848,25 +906,88 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                     val (hashBytes, _) = CryptoEngine.hashKeyfile(context, keyfile.uri)
                     hashBytes
                 } else null
-                val extractedDir = File(context.filesDir, "extracted_${safeVaultBase}_${System.currentTimeMillis()}").apply { mkdirs() }
-                val extractedEntries = CryptoEngine.decryptV3VaultToDirectory(
-                    context = context,
-                    vaultUri = vaultUri,
-                    outputDir = extractedDir,
-                    password = password.toCharArray(),
-                    keyfileHash = keyfileHash
-                ) { _, _ -> }
 
-                _decryptionResult.value = currentResult.copy(files = extractedEntries)
-                val matched = extractedEntries.firstOrNull { it.path == entry.path || it.name == entry.name }
-                if (matched != null) {
-                    withContext(Dispatchers.Main) {
-                        onReady(matched)
+                val extractedEntry = if (currentResult.version == VaultVersion.V3) {
+                    try {
+                        CryptoEngine.extractSingleFileFromV3Vault(
+                            context = context,
+                            vaultUri = vaultUri,
+                            entry = entry,
+                            password = password.toCharArray(),
+                            keyfileHash = keyfileHash,
+                            outputFile = targetFile
+                        )
+                    } catch (targetedErr: Exception) {
+                        addLog("⚠️ Targeted extraction fallback: ${targetedErr.message}", LogType.WARN)
+                        fallbackExtractAll(context, vaultUri, safeVaultBase, password, keyfileHash, entry, currentResult.version)
                     }
+                } else {
+                    fallbackExtractAll(context, vaultUri, safeVaultBase, password, keyfileHash, entry, currentResult.version)
+                }
+
+                if (extractedEntry != null) {
+                    val updatedFiles = currentResult.files.map {
+                        if (it.path == extractedEntry.path || it.name == extractedEntry.name) extractedEntry else it
+                    }
+                    _decryptionResult.value = currentResult.copy(files = updatedFiles)
+                    withContext(Dispatchers.Main) {
+                        onReady(extractedEntry)
+                    }
+                } else {
+                    addLog("❌ Extracted entry not found for \"${entry.name}\"", LogType.ERROR)
                 }
             } catch (e: Exception) {
                 addLog("❌ Failed to extract \"${entry.name}\": ${e.message}", LogType.ERROR)
             }
         }
+    }
+
+    private suspend fun fallbackExtractAll(
+        context: Context,
+        vaultUri: Uri,
+        safeVaultBase: String,
+        password: String,
+        keyfileHash: ByteArray?,
+        targetEntry: DecryptedFileEntry,
+        version: VaultVersion
+    ): DecryptedFileEntry? {
+        val dir = sessionExtractionDir ?: File(context.filesDir, "extracted_${safeVaultBase}_session").apply { mkdirs() }.also {
+            sessionExtractionDir = it
+        }
+        val existing = File(dir, targetEntry.name)
+        if (existing.exists() && (existing.length() > 0 || targetEntry.sizeBytes == 0L)) {
+            val mimeType = targetEntry.mimeType
+            val textPreview = if (mimeType.startsWith("text/") && existing.length() < 256 * 1024) {
+                try { existing.readText(Charsets.UTF_8).take(2000) } catch (_: Exception) { null }
+            } else null
+            return targetEntry.copy(
+                sizeBytes = existing.length(),
+                localFileUri = Uri.fromFile(existing),
+                textContentPreview = textPreview
+            )
+        }
+
+        val allEntries = if (version == VaultVersion.V3) {
+            CryptoEngine.decryptV3VaultToDirectory(
+                context = context,
+                vaultUri = vaultUri,
+                outputDir = dir,
+                password = password.toCharArray(),
+                keyfileHash = keyfileHash
+            ) { _, _ -> }
+        } else {
+            CryptoEngine.decryptV1OrV2Vault(
+                context = context,
+                vaultUri = vaultUri,
+                outputDir = dir,
+                password = password.toCharArray(),
+                keyfileHash = keyfileHash
+            ) { _, _ -> }
+        }
+
+        _decryptionResult.update { current ->
+            current?.copy(files = allEntries)
+        }
+        return allEntries.firstOrNull { it.path == targetEntry.path || it.name == targetEntry.name }
     }
 }

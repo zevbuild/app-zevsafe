@@ -98,11 +98,22 @@ Every chunk is authenticated with a 42-byte cryptographically bound AAD block:
 
 ## 4. Tail Manifest Catalog
 
-Located at `manifestOffset`, the tail manifest stores directory metadata, file paths, uncompressed sizes, CRC32 checksums, and chunk byte spans.
+Located at `manifestOffset`, the tail manifest envelope stores directory metadata, file paths, stream-measured uncompressed and compressed sizes, CRC32 checksums, and chunk byte spans.
 
-1. **Format:** Standard ZIP Central Directory or structured catalog.
-2. **Encryption:** Encrypted via the same STREAM AEAD engine using the chunk index corresponding to the catalog position, with `isLastChunk = 0x01`.
-3. **Random-Access Slicing:** The native app and web portal read the first 57 bytes, seek immediately to `manifestOffset`, and decrypt only the catalog block. This allows displaying 10,000+ files in **< 100 ms** using **< 15 MB RAM**.
+1. **Format:** JSON metadata envelope (`{"version": 3, "totalSize": Long, "fileCount": Int, "files": [...]}`).
+2. **File Entry Schema:**
+   - `"path"`: Relative file path in vault
+   - `"name"`: File display name
+   - `"size"`: Stream-measured uncompressed byte length (accurately measured during streaming, even when SAF queries report 0 bytes)
+   - `"uncompressedSize"`: Alias for uncompressed byte length
+   - `"compressedSize"`: Actual compressed payload byte length (measured post-compression; matches `size` for STORED files)
+   - `"localHeaderOffset"`: Byte offset of `PK\x03\x04` in the ZIP plaintext stream
+   - `"compressed"`: Boolean (`false` for STORED precompressed files, `true` for DEFLATED files)
+   - `"crc32"`: IEEE 802.3 CRC-32 checksum (calculated for all STORED and DEFLATED files)
+   - `"chunkStart"`: Starting 4 MB chunk index `(localHeaderOffset / CHUNK_SIZE)`
+   - `"chunkEnd"`: Ending 4 MB chunk index `((localHeaderOffset + 30 + path.length + compressedSize) / CHUNK_SIZE)`
+3. **Encryption:** Encrypted via AES-256-GCM envelope with dedicated salt and 12-byte IV.
+4. **Random-Access Slicing:** The native app and web portal read the first 57 bytes, seek immediately to `manifestOffset`, and decrypt only the catalog block. This allows displaying 10,000+ files in **< 100 ms** using **< 15 MB RAM**.
 
 ---
 
@@ -128,3 +139,24 @@ To deliver decrypted bytes into consumers (such as AndroidX Media3 ExoPlayer or 
 2. **Legacy v1 Format:**
    * 28-byte header: Salt (16B) + IV (12B).
    * PBKDF2-SHA256 (100,000 iterations).
+
+---
+
+## 7. Fast Targeted Single-File Extraction (`extractSingleFileFromV3Vault`)
+
+To preview or extract an individual file without decompressing or decrypting an entire multi-gigabyte vault:
+
+1. **Deterministic Chunk Calculation:**
+   * Each entry in the manifest catalog provides `localHeaderOffset`, `compressedSize`, `chunkStart`, and `chunkEnd`.
+   * For non-final chunks, vault offset is:
+     $$\text{chunkVaultStart} = 57 + i \times (\text{chunkSize} + 4 + 16)$$
+   * `CryptoEngine.extractSingleFileFromV3Vault` seeks directly to `chunkVaultStart` using `FileChannel.position()`, decrypting only the contiguous span $i \in [\text{chunkStart}, \text{chunkEnd}]$ ($\le 2$ chunks for typical files $< 4$ MB).
+2. **In-Span Local File Header Parsing:**
+   * Relative offset: $\text{relPos} = \text{localHeaderOffset} - (\text{chunkStart} \times \text{chunkSize})$.
+   * Parses standard ZIP Local File Header (`PK\x03\x04` / `0x04034b50`) at $\text{relPos}$ to extract exact filename length $n$ and extra field length $m$.
+   * Payload starts at $\text{relPos} + 30 + n + m$.
+3. **Adaptive Boundary Expansion:**
+   * If extra header bytes extend the payload beyond the initial span, the engine automatically decrypts chunk $\text{chunkEnd} + 1$ without failing.
+4. **Decompression & Memory Bound:**
+   * DEFLATED streams are inflated via `java.util.zip.Inflater(true)` (nowrap); STORED payloads are copied directly.
+   * Peak heap memory during targeted extraction remains strictly bounded under **15 MB** (1–2 chunks in memory), and execution completes in **< 100 ms**.

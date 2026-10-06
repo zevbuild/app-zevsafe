@@ -74,7 +74,7 @@ When cutting a new release:
    ```kotlin
    defaultConfig {
        versionCode = 31 // increment integer
-       versionName = "6.3.1" // increment semver string
+       versionName = "6.4.0" // increment semver string
    }
    ```
 2. **Update Documentation & Project Memory:**
@@ -85,10 +85,10 @@ When cutting a new release:
 3. **Commit & Tag:**
    ```bash
    git add app/build.gradle.kts PROJECT_MEMORY.md PROJECT-MEMORY/ CHANGELOG.md README.md
-   git commit -m "chore: release v6.3.1"
-   git tag v6.3.1
+   git commit -m "chore: release v6.4.0"
+   git tag v6.4.0
    git push origin main --tags
    ```
 4. **Monitor GitHub Actions & Update Release Notes:**
    * Watch the workflow complete at `https://github.com/zevbuild/app-zevsafe/actions`.
-   * Verify APK downloads and formatted release notes on `https://github.com/zevbuild/app-zevsafe/releases/tag/v6.3.1`.
+   * Verify APK downloads and formatted release notes on `https://github.com/zevbuild/app-zevsafe/releases/tag/v6.4.0`.

@@ -82,3 +82,16 @@ class V3DecryptedInputStream(
 ```
 
 At no point in this pipeline does data buffer in memory beyond the current 4 MB block. Multi-gigabyte archives stream directly from source to destination.
+
+---
+
+## 5. Fast Targeted Single-File Extraction Memory Bounds
+
+When previewing individual items in `VaultBrowserScreen`, full-archive decompression would violate the < 150 MB heap ceiling and introduce multi-second latency for multi-gigabyte vaults:
+
+1. **Selective Chunk Retrieval:** `CryptoEngine.extractSingleFileFromV3Vault` calculates the exact chunk span `chunkStart..chunkEnd` from the manifest catalog (`chunkStart = localHeaderOffset / 4MB`, `chunkEnd = (localHeaderOffset + 30 + path.length + compSize) / 4MB`).
+2. **Zero-Seek Chunk Reading:** Decrypts strictly the $N$ chunks covering the file ($N \le 2$ for typical files $< 4$ MB) using `FileChannel.position(chunkVaultStart)` seeking. Preceding chunks ($0..\text{chunkStart}-1$) and succeeding chunks are never read or decrypted.
+3. **RAM Ceiling:** Peak memory is strictly bounded: $N \times 4\text{ MB} \le 15\text{ MB}$, leaving > 135 MB headroom below the 150 MB ceiling.
+4. **Adaptive Span Expansion:** If extra fields cause the ZIP local header or compressed payload to cross into the next chunk, the engine dynamically decrypts only the immediate succeeding chunk, preserving deterministic memory bounds.
+5. **Session Directory Cache:** Legacy v1/v2 monolithic archives use `fallbackExtractAll` to `extracted_${safeVaultBase}_session`, ensuring full decryption occurs at most once per session.
+

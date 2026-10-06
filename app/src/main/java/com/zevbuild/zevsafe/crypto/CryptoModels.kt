@@ -91,6 +91,7 @@ data class OperationProgressState(
     val cryptoPercent: Float = 0f,
     val saveStatus: StageStatus = StageStatus.IDLE,
     val savePercent: Float = 0f,
+    val speedMBs: Double = 0.0,
     val metrics: StageMetrics = StageMetrics(),
     val errorMessage: String? = null
 )

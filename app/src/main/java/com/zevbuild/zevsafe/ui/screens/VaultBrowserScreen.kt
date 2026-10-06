@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
@@ -35,11 +37,15 @@ import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -57,19 +63,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.zevbuild.zevsafe.crypto.CryptoEngine
 import com.zevbuild.zevsafe.crypto.DecryptedFileEntry
+import com.zevbuild.zevsafe.ui.components.AudioPlayerModal
 import com.zevbuild.zevsafe.ui.components.CardAccent
 import com.zevbuild.zevsafe.ui.components.CyberCard
 import com.zevbuild.zevsafe.ui.theme.CardBorder
@@ -83,8 +86,37 @@ import com.zevbuild.zevsafe.ui.theme.TealPrimary
 import com.zevbuild.zevsafe.ui.theme.TextMuted
 import com.zevbuild.zevsafe.ui.theme.TextPrimary
 import com.zevbuild.zevsafe.ui.theme.TextSecondary
+import com.zevbuild.zevsafe.ui.viewer.FileViewerHelper
+import com.zevbuild.zevsafe.ui.viewer.VideoPlayerActivity
 import com.zevbuild.zevsafe.viewmodel.VaultViewModel
 import java.io.File
+
+// MIME Color Constants per R4 UI/UX Spec
+private val MimeRose = Color(0xFFF43F5E)    // Video (video/*)
+private val MimeAmber = Color(0xFFF59E0B)   // Audio (audio/*)
+private val MimeTeal = Color(0xFF2DD4BF)    // Images (image/*)
+private val MimeSkyBlue = Color(0xFF38BDF8) // Documents (text/*, application/pdf, etc.)
+private val MimeViolet = Color(0xFFA78BFA)  // Archives (application/zip, .zev, etc.)
+
+private fun isArchiveFile(entry: DecryptedFileEntry): Boolean {
+    val nameLower = entry.name.lowercase()
+    val mime = entry.mimeType.lowercase()
+    return mime == "application/zip" || mime == "application/x-zip-compressed" ||
+            mime == "application/x-tar" || mime == "application/gzip" || mime == "application/x-7z-compressed" ||
+            nameLower.endsWith(".zev") || nameLower.endsWith(".zip") || nameLower.endsWith(".tar") ||
+            nameLower.endsWith(".gz") || nameLower.endsWith(".7z") || nameLower.endsWith(".rar")
+}
+
+private fun isDocumentFile(entry: DecryptedFileEntry): Boolean {
+    val nameLower = entry.name.lowercase()
+    val mime = entry.mimeType.lowercase()
+    return mime.startsWith("text/") || mime == "application/pdf" ||
+            mime.contains("document") || mime.contains("sheet") || mime.contains("presentation") ||
+            nameLower.endsWith(".pdf") || nameLower.endsWith(".txt") || nameLower.endsWith(".doc") ||
+            nameLower.endsWith(".docx") || nameLower.endsWith(".xls") || nameLower.endsWith(".xlsx") ||
+            nameLower.endsWith(".ppt") || nameLower.endsWith(".pptx") || nameLower.endsWith(".json") ||
+            nameLower.endsWith(".xml") || nameLower.endsWith(".csv") || nameLower.endsWith(".md")
+}
 
 @Composable
 fun VaultBrowserScreen(
@@ -96,6 +128,7 @@ fun VaultBrowserScreen(
     val decryptionResult by viewModel.decryptionResult.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     var selectedPreviewFile by remember { mutableStateOf<DecryptedFileEntry?>(null) }
+    var selectedAudioFile by remember { mutableStateOf<DecryptedFileEntry?>(null) }
 
     // File Preview Modal
     if (selectedPreviewFile != null) {
@@ -105,133 +138,200 @@ fun VaultBrowserScreen(
         )
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        if (decryptionResult == null) {
-            CyberCard(
-                title = "Vault Browser",
-                subtitle = "Explore files and media inside restored vaults",
-                tag = "EXPLORER",
-                accent = CardAccent.PURPLE
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
+    // Audio Player Modal
+    if (selectedAudioFile != null) {
+        AudioPlayerModal(
+            audioEntry = selectedAudioFile!!,
+            onDismiss = { selectedAudioFile = null }
+        )
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (decryptionResult == null) {
+                CyberCard(
+                    title = "Vault Browser",
+                    subtitle = "Explore files and media inside restored vaults",
+                    tag = "EXPLORER",
+                    accent = CardAccent.PURPLE
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clip(CircleShape)
-                                .background(PurplePrimary.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.LockOpen,
-                                contentDescription = null,
-                                tint = PurpleLight,
-                                modifier = Modifier.size(36.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(PurplePrimary.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.LockOpen,
+                                    contentDescription = null,
+                                    tint = PurpleLight,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Text(
+                                text = "No Vault Decrypted Yet",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Decrypt a .zev vault to view and inspect its files here.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = onNavigateToDecrypt,
+                                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Go to Decrypt")
+                            }
+                        }
+                    }
+                }
+            } else {
+                val result = decryptionResult!!
+                val filteredFiles = result.files.filter {
+                    it.path.contains(searchQuery, ignoreCase = true) || it.name.contains(searchQuery, ignoreCase = true)
+                }
+
+                CyberCard(
+                    title = result.vaultName,
+                    subtitle = "${result.files.size} items · ${CryptoEngine.formatBytes(result.totalSizeBytes)} · ${result.version.displayName}",
+                    tag = "ACTIVE VAULT",
+                    accent = CardAccent.TEAL
+                ) {
+                    // Search bar
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Filter files...", color = TextMuted) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = "Search", tint = TextSecondary)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("browser_search_input"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = TealPrimary,
+                            unfocusedBorderColor = CardBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // File List with bottom padding for Floating Export All FAB
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(440.dp),
+                        contentPadding = PaddingValues(bottom = 76.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredFiles) { fileEntry ->
+                            FileItemRow(
+                                entry = fileEntry,
+                                onClick = {
+                                    if (!fileEntry.isDirectory) {
+                                        viewModel.extractSingleFileIfNeeded(context, fileEntry) { extracted ->
+                                            when {
+                                                extracted.mimeType.startsWith("video/") -> {
+                                                    val intent = Intent(context, VideoPlayerActivity::class.java).apply {
+                                                        putExtra(VideoPlayerActivity.EXTRA_URI, extracted.localFileUri.toString())
+                                                        putExtra(VideoPlayerActivity.EXTRA_NAME, extracted.name)
+                                                    }
+                                                    context.startActivity(intent)
+                                                }
+                                                extracted.mimeType.startsWith("audio/") -> {
+                                                    selectedAudioFile = extracted
+                                                }
+                                                extracted.mimeType.startsWith("image/") || extracted.mimeType.startsWith("text/") || extracted.textContentPreview != null -> {
+                                                    selectedPreviewFile = extracted
+                                                }
+                                                else -> {
+                                                    FileViewerHelper.openWithExternalApp(context, extracted)
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                onShare = {
+                                    viewModel.extractSingleFileIfNeeded(context, fileEntry) { extracted ->
+                                        FileViewerHelper.shareFile(context, extracted)
+                                    }
+                                }
                             )
                         }
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text(
-                            text = "No Vault Decrypted Yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Decrypt a .zev vault to view and inspect its files here.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
                     }
                 }
             }
-        } else {
+        }
+
+        // Floating "Export All" Extended FAB anchored at bottom-end
+        if (decryptionResult != null) {
             val result = decryptionResult!!
-            val filteredFiles = result.files.filter {
-                it.path.contains(searchQuery, ignoreCase = true) || it.name.contains(searchQuery, ignoreCase = true)
-            }
-
-            CyberCard(
-                title = result.vaultName,
-                subtitle = "${result.files.size} items · ${CryptoEngine.formatBytes(result.totalSizeBytes)} · ${result.version.displayName}",
-                tag = "ACTIVE VAULT",
-                accent = CardAccent.TEAL
+            val fileCount = result.files.filter { !it.isDirectory }.size
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 20.dp, bottom = 20.dp)
             ) {
-                // Search bar
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Filter files...", color = TextMuted) },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = "Search", tint = TextSecondary)
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        viewModel.exportDecryptedZip(context) { zipFile ->
+                            try {
+                                val uri = FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    zipFile
+                                )
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/zip"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, "Export All Files (.zip)"))
+                            } catch (_: Exception) {}
+                        }
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("browser_search_input"),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = TealPrimary,
-                        unfocusedBorderColor = CardBorder,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // File List
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(380.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(filteredFiles) { fileEntry ->
-                        FileItemRow(
-                            entry = fileEntry,
-                            onClick = {
-                                if (!fileEntry.isDirectory) {
-                                    viewModel.extractSingleFileIfNeeded(context, fileEntry) { extracted ->
-                                        selectedPreviewFile = extracted
-                                    }
-                                }
-                            },
-                            onShare = {
-                                viewModel.extractSingleFileIfNeeded(context, fileEntry) { extracted ->
-                                    extracted.localFileUri?.let { uri ->
-                                        try {
-                                            val file = File(uri.path ?: "")
-                                            if (file.exists()) {
-                                                val contentUri = FileProvider.getUriForFile(
-                                                    context,
-                                                    "${context.packageName}.fileprovider",
-                                                    file
-                                                )
-                                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                                    type = extracted.mimeType
-                                                    putExtra(Intent.EXTRA_STREAM, contentUri)
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }
-                                                context.startActivity(Intent.createChooser(shareIntent, "Share ${extracted.name}"))
-                                            }
-                                        } catch (_: Exception) {}
-                                    }
-                                }
-                            }
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Export All",
+                            modifier = Modifier.size(18.dp)
                         )
-                    }
-                }
+                    },
+                    text = {
+                        Text(
+                            text = "Export All ($fileCount)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    },
+                    containerColor = TealPrimary,
+                    contentColor = Color.White,
+                    modifier = Modifier.testTag("fab_export_all")
+                )
             }
         }
     }
@@ -243,20 +343,33 @@ private fun FileItemRow(
     onClick: () -> Unit,
     onShare: () -> Unit
 ) {
-    val icon = when {
-        entry.isDirectory -> Icons.Default.Folder
-        entry.mimeType.startsWith("image/") -> Icons.Default.Image
-        entry.mimeType.startsWith("text/") -> Icons.Default.Description
-        entry.mimeType.startsWith("video/") -> Icons.Default.Movie
-        entry.mimeType.startsWith("audio/") -> Icons.Default.MusicNote
-        else -> Icons.Default.InsertDriveFile
+    // MIME color coding per R4 UI/UX Spec
+    val (itemColor, icon) = when {
+        entry.isDirectory -> Pair(PurpleLight, Icons.Default.Folder)
+        entry.mimeType.startsWith("video/") -> Pair(MimeRose, Icons.Default.Movie)
+        entry.mimeType.startsWith("audio/") -> Pair(MimeAmber, Icons.Default.MusicNote)
+        entry.mimeType.startsWith("image/") -> Pair(MimeTeal, Icons.Default.Image)
+        isArchiveFile(entry) -> Pair(MimeViolet, Icons.Default.Archive)
+        isDocumentFile(entry) -> Pair(MimeSkyBlue, Icons.Default.Description)
+        else -> Pair(TextSecondary, Icons.Default.InsertDriveFile)
     }
 
-    val iconTint = when {
-        entry.isDirectory -> PurpleLight
-        entry.mimeType.startsWith("image/") -> TealLight
-        entry.mimeType.startsWith("text/") -> Info
-        else -> TextSecondary
+    // File extension tag badge
+    val ext = if (entry.isDirectory) {
+        "DIR"
+    } else {
+        entry.name.substringAfterLast('.', "").uppercase().take(5).ifEmpty { "FILE" }
+    }
+
+    // Tap-to-preview hint
+    val hint = when {
+        entry.isDirectory -> "Folder"
+        entry.mimeType.startsWith("video/") -> "Tap to play video"
+        entry.mimeType.startsWith("audio/") -> "Tap to play audio"
+        entry.mimeType.startsWith("image/") -> "Tap to preview image"
+        entry.mimeType.startsWith("text/") || entry.textContentPreview != null -> "Tap to preview text"
+        entry.mimeType == "application/pdf" || entry.name.endsWith(".pdf", ignoreCase = true) -> "Tap to open PDF"
+        else -> "Tap to open"
     }
 
     Row(
@@ -274,25 +387,61 @@ private fun FileItemRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(22.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
-                Text(
-                    text = entry.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontSize = 13.sp,
-                    color = TextPrimary,
-                    maxLines = 1
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(itemColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = itemColor,
+                    modifier = Modifier.size(20.dp)
                 )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f, fill = false)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = entry.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontSize = 13.sp,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    // File extension tag badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(itemColor.copy(alpha = 0.15f))
+                            .border(1.dp, itemColor.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = ext,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = itemColor
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                // Subtitle with tap hint
                 Text(
-                    text = if (entry.isDirectory) "Directory" else CryptoEngine.formatBytes(entry.sizeBytes),
+                    text = if (entry.isDirectory) "Directory" else "${CryptoEngine.formatBytes(entry.sizeBytes)} · $hint",
                     fontSize = 11.sp,
-                    color = TextSecondary
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -313,13 +462,13 @@ private fun FileItemRow(
     }
 }
 
-private val Info = Color(0xFF38BDF8)
-
 @Composable
 private fun FilePreviewModal(
     entry: DecryptedFileEntry,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -368,7 +517,7 @@ private fun FilePreviewModal(
                         .height(280.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(Color.Black.copy(alpha = 0.4f))
-                        .padding(12.dp),
+                        .padding(8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     if (entry.mimeType.startsWith("image/") && entry.localFileUri != null) {
@@ -377,29 +526,45 @@ private fun FilePreviewModal(
                             contentDescription = entry.name,
                             modifier = Modifier.fillMaxSize()
                         )
-                    } else if ((entry.mimeType.startsWith("video/") || entry.mimeType.startsWith("audio/")) && entry.localFileUri != null) {
-                        val playerContext = LocalContext.current
-                        val exoPlayer = remember(entry.localFileUri) {
-                            ExoPlayer.Builder(playerContext).build().apply {
-                                setMediaItem(MediaItem.fromUri(entry.localFileUri!!))
-                                prepare()
-                                playWhenReady = true
+                    } else if (entry.mimeType.startsWith("video/") && entry.localFileUri != null) {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(TealPrimary.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Movie,
+                                    contentDescription = "Video",
+                                    tint = TealLight,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Button(
+                                onClick = {
+                                    val intent = Intent(context, VideoPlayerActivity::class.java).apply {
+                                        putExtra(VideoPlayerActivity.EXTRA_URI, entry.localFileUri.toString())
+                                        putExtra(VideoPlayerActivity.EXTRA_NAME, entry.name)
+                                    }
+                                    context.startActivity(intent)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text(
+                                    text = "▶ Play Video Fullscreen",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
                             }
                         }
-                        DisposableEffect(entry.localFileUri) {
-                            onDispose {
-                                exoPlayer.release()
-                            }
-                        }
-                        AndroidView(
-                            factory = { ctx ->
-                                PlayerView(ctx).apply {
-                                    player = exoPlayer
-                                    useController = true
-                                }
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
                     } else if (entry.textContentPreview != null) {
                         val scroll = rememberScrollState()
                         Text(
@@ -412,24 +577,65 @@ private fun FilePreviewModal(
                                 .verticalScroll(scroll)
                         )
                     } else {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.InsertDriveFile,
                                 contentDescription = null,
-                                tint = TextSecondary,
-                                modifier = Modifier.size(48.dp)
+                                tint = TealLight,
+                                modifier = Modifier.size(44.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Binary File",
-                                fontSize = 13.sp,
-                                color = TextPrimary
+                                text = entry.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Use export to open in external application",
+                                text = "${entry.mimeType.ifEmpty { "application/octet-stream" }} · ${CryptoEngine.formatBytes(entry.sizeBytes)}",
                                 fontSize = 11.sp,
                                 color = TextSecondary
                             )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = {
+                                    FileViewerHelper.openWithExternalApp(context, entry)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth(0.92f)
+                            ) {
+                                Text(
+                                    text = "🚀 Open in External App",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    fontSize = 13.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    FileViewerHelper.shareFile(context, entry)
+                                },
+                                border = BorderStroke(1.dp, CardBorder),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth(0.92f)
+                            ) {
+                                Text(
+                                    text = "📤 Share File",
+                                    color = TextPrimary,
+                                    fontSize = 13.sp
+                                )
+                            }
                         }
                     }
                 }

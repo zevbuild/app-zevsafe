@@ -46,13 +46,13 @@
 
 * **`MainActivity.kt`:** Single-activity architecture. Houses `AppNavigation()`, Material 3 theme wrapper, and handles incoming system intents via `handleIncomingIntent()`.
 * **Screens (`ui.screens`):**
-  * `HomeScreen.kt`: Hero branding, quick action cards (Encrypt / Decrypt / Guide), and system security status badge.
-  * `EncryptScreen.kt`: Target file/folder selector, password input with real-time entropy estimation, optional Keyfile 2FA picker, and stage progress tracker.
-  * `DecryptScreen.kt`: Vault file selector (`.zev`), password input, keyfile picker, extraction target selector, and decrypt progress tracker.
-  * `VaultBrowserScreen.kt`: Decrypted directory hierarchy browser with breadcrumbs, search filtering, single-file extraction, and the embedded **Cinema Media Player**.
+  * `HomeScreen.kt`: Hero branding, quick action cards (Encrypt / Decrypt / Guide), and system security status badge. Supplies cross-screen navigation lambdas (`onNavigateToDecrypt`, `onNavigateToBrowser`) to `EncryptScreen` for seamless direct transitions upon vault creation.
+  * `EncryptScreen.kt`: Animated glowing dropzone (`Brush.linearGradient`), expandable selected files list with individual item removal, password input with entropy meter, optional Keyfile 2FA picker, persistent in-screen Success banner card (`Share Vault`, `View in Downloads`, `Explore Now`), isolated banner visibility (`!progressState.isActive` with automatic state reset on selection clearance or new encryption runs), and prominent cyber error alert card with retry.
+  * `DecryptScreen.kt`: Glowing vault file selection card (`.zev`), interactive Vault Format Inspector badge card (`v3 STREAM AEAD`, `4 MB Chunks`, `PBKDF2 600k`, `2FA Keyfile Status`), instant catalog inspection button (`viewModel.loadInstantCatalog(context)`), real-time MB/s decryption speed gauge, polished cyber success card with glowing checkmark, and prominent error recovery card.
+  * `VaultBrowserScreen.kt`: Decrypted directory hierarchy browser with search filtering, MIME-type color coding (Rose video, Amber audio, Teal image, Sky Blue docs, Violet archive), file extension tag badges (`MP4`, `MP3`, `PDF`, etc.), tap-to-preview hints, single-file extraction routing, embedded Cinema Media Player, and a floating `ExtendedFloatingActionButton` ("Export All") anchored with live file count badge.
   * `SecurityGuideScreen.kt`: Offline cryptographic documentation, zero-knowledge explanations, and FAQ.
 * **Reusable Components (`ui.components`):**
-  * `StageProgressTracker.kt`: 3-stage progress pills (`Compress` → `Encrypt/Decrypt` → `Save`) with live throughput telemetry (MB/s, ETA, bytes processed).
+  * `StageProgressTracker.kt`: 3-stage progress pills (`Compress` → `Encrypt/Decrypt` → `Save`) with glowing accent borders on active stages, percentage badge, smooth animated progress indicator, and live glowing throughput speed gauge pill badge (`X.X MB/s`).
   * `PasswordStrengthMeter.kt`: 5-level real-time entropy calculator (Very Weak to Military Grade) with dynamic color bars.
   * `CyberCard.kt`: Glassmorphic elevated container with specular gradients and neon border accents.
   * `AmbientBackground.kt`: Animated deep-space dark background with glowing purple and teal radial orbs.
@@ -87,20 +87,37 @@
 
 * **`CryptoEngine.kt`:**
   * Pure Kotlin/JVM cryptographic pipeline utilizing standard JCA (`javax.crypto.Cipher`, `java.security.SecureRandom`).
-  * Implements `packV3Header()`, `unpackV3Header()`, `computeChunkAad()`, `deriveMasterKey()`.
-  * Provides `encryptV3Stream()`: reads input stream, chunks into 4 MB blocks, applies AES-GCM encryption with incrementing counter IV, appends tail manifest, and streams to output.
-  * Provides `decryptV3Stream()`: unpacks header, seeks to tail manifest, verifies AAD, extracts files directly into destination directory.
+  * Implements `createV3ContainerHeader()`, `parseVaultHeader()`, `computeChunkAAD()`, `deriveKeyV3()`.
+  * Provides `encryptItemsToV3Vault()`: reads input streams, streams into `ZipOutputStream` with chunked 4 MB AEAD blocks, measures uncompressed and compressed byte lengths, calculates IEEE 802.3 CRC-32 for all items (STORED and DEFLATED), appends authenticated tail manifest with accurate sizes, and updates header manifestOffset. Supports both Android `Context` and pure JVM `inputStreamProvider` / `streamOpener` overloads.
+  * Provides `readV3VaultManifest()`: parses header, seeks to tail manifest, decrypts manifest envelope, and returns `VaultCatalog`. Supports `InputStream` and `Context`/`Uri` overloads.
+  * Provides `decryptV3VaultStreamToDirectory()` / `decryptV3VaultToDirectory()`: streams and decrypts chunks via `V3DecryptedInputStream` and extracts files via `ZipInputStream`.
   * Provides `V3DecryptedInputStream`: custom sequential `InputStream` enabling on-the-fly streaming decryption directly into media players.
 
 ---
 
-### E. Media Player Integration (`AndroidX Media3 ExoPlayer`)
+### E. Media Player & Document Viewer Integration (`AndroidX Media3 ExoPlayer` & `FileProvider`)
 
-* **In-App Cinema Player:**
-  * Hosted inside `VaultBrowserScreen.kt`.
-  * Plays encrypted videos (`.mp4`, `.mkv`, `.webm`, `.mov`) and audio files (`.mp3`, `.wav`, `.flac`, `.aac`) directly from the vault.
-  * Decrypts chunks sequentially into an in-memory `ByteArrayDataSource` backed by `VaultViewModel.readDecryptedFileBytes()` / `V3DecryptedInputStream`.
-  * **Zero Disk Persistence:** No decrypted media data ever touches flash storage; volatile RAM is freed immediately when the preview dialog is closed.
+* **Fullscreen Video Player (`VideoPlayerActivity`):**
+  * Dedicated edge-to-edge Compose activity registered in `AndroidManifest.xml` (`android:exported="false"`, `configChanges="orientation|screenSize|smallestScreenSize|screenLayout"`).
+  * Auto-hiding cyber-dark controls overlay (fade-out after 3.5s of playback; tap screen to toggle visibility).
+  * Top bar with back navigation, video title, and format badge.
+  * Center transport controls: rewind 10s (`Replay10`), large play/pause circular toggle, fast-forward 10s (`Forward10`).
+  * Bottom controls: current position and duration (`mm:ss`), seekbar `Slider` with `TealPrimary` styling, audio mute/volume toggle, and portrait/landscape orientation toggle.
+  * Pauses on `Lifecycle.Event.ON_PAUSE` and cleanly releases `ExoPlayer` on `onDestroy()`.
+
+* **Dedicated Cyber Audio Player (`AudioPlayerModal`):**
+  * Hosted in `ui/components/AudioPlayerModal.kt` as a specialized Compose modal for audio playback.
+  * Rotating vinyl album-art disc with glowing border and musical note center.
+  * 14-bar animated equalizer waveform that dynamically animates during playback.
+  * Track title, MIME format pill, and file size metadata.
+  * Interactive seekbar with `mm:ss` timestamps, repeat/looping toggle (`Player.REPEAT_MODE_ONE`), skip -/+10s controls, and 1.0x/1.5x/2.0x playback speed selector.
+  * Smooth 250ms coroutine ticker for seek position; releases `ExoPlayer` on modal dismiss.
+
+* **Document Viewer & Open-With Fallback (`FileViewerHelper`):**
+  * Hosted in `ui/viewer/FileViewerHelper.kt`.
+  * `openWithExternalApp(context, entry)`: Resolves extracted local file, creates content URI via `FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)`, and fires `Intent(Intent.ACTION_VIEW)` with `FLAG_GRANT_READ_URI_PERMISSION`.
+  * Gracefully catches `ActivityNotFoundException` and delegates to `shareFile(context, entry)`.
+  * `FilePreviewModal` in `VaultBrowserScreen.kt` displays an active card for unsupported documents with `[ 🚀 Open in External App ]` and `[ 📤 Share File ]` buttons.
 
 ---
 
@@ -119,3 +136,26 @@
    * Automatically takes persistable read URI permissions (`FLAG_GRANT_READ_URI_PERMISSION`).
    * Dynamic STORED entry measurement in `CryptoEngine.kt`: measures actual input stream length during CRC32 calculation to eliminate `ZipException: invalid entry size` when packing precompressed files whose size could not be queried via SAF.
    * Writes final encrypted `.zev` vaults and exported `.zip` archives to the user's `Downloads` directory via `MediaStore.Downloads` while also presenting the Android system share sheet (`Intent.ACTION_SEND`) with `FLAG_GRANT_READ_URI_PERMISSION`.
+
+---
+
+### G. Verification Subsystem (`app/src/test/java/com/zevbuild/zevsafe/CryptoUnitTest.kt`)
+
+* **4-Tier Test Architecture (36 Pure JVM Unit Tests):**
+  * **Tier 1 & 2 (Feature & Boundary Tests):**
+    * Zero-reported-size item round-trip encryption/decryption (STORED images and DEFLATED text).
+    * Stream-measured manifest size recording (`actualSize`, `compressedSize`, IEEE 802.3 CRC-32).
+    * Single-file targeted extraction chunk calculation (`chunkStart`, `chunkEnd`), boundary crossing, clamping, and chunk isolation.
+    * Empty 0-byte file handling and manifest schema validation.
+  * **Tier 3 (Cross-Feature Combinations & Backward Compatibility):**
+    * Legacy v1 and v2 monolithic vault decryption compatibility.
+    * Encrypted manifest envelope tamper detection and corrupted header detection.
+    * MIME-type classification and media viewer routing contract.
+    * Telemetry models and speed throughput calculations.
+  * **Tier 4 (Real-World Workloads & Security Assurances):**
+    * Multi-file mixed STORED/DEFLATED vault round-trip with targeted extraction.
+    * Dynamic `FileProvider` authority verification (`${context.packageName}.fileprovider`).
+    * Static air-gap audit: zero `android.permission.INTERNET` and no network libraries in `build.gradle.kts`.
+    * Large multi-chunk extraction latency and chunk isolation benchmark (< 200 ms).
+    * Zero-knowledge password recovery sheet formatting and warnings.
+

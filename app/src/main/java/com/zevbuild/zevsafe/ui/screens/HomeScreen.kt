@@ -133,7 +133,11 @@ fun HomeScreen(
                 Box(modifier = Modifier.fillMaxSize()) {
                     Crossfade(targetState = currentTab, label = "tab_crossfade") { tab ->
                         when (tab) {
-                            NavigationTab.ENCRYPT -> EncryptScreen(viewModel = viewModel)
+                            NavigationTab.ENCRYPT -> EncryptScreen(
+                                viewModel = viewModel,
+                                onNavigateToDecrypt = { currentTab = NavigationTab.DECRYPT },
+                                onNavigateToBrowser = { currentTab = NavigationTab.BROWSER }
+                            )
                             NavigationTab.DECRYPT -> DecryptScreen(
                                 viewModel = viewModel,
                                 onNavigateToBrowser = { currentTab = NavigationTab.BROWSER }

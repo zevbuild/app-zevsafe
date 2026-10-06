@@ -3,7 +3,7 @@
 > **by [zevbuild](https://github.com/zevbuild) · Encrypt and decrypt entire folders directly in your browser or native Android app — no server, no uploads, 100% private.**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Cloudflare%20Pages-8b5cf6?style=for-the-badge&logo=cloudflare)](https://zevsafe.pages.dev)
-[![Android APK](https://img.shields.io/badge/Android%20APK-Download%20v6.3.0-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/zevbuild/app-zevsafe/releases/latest)
+[![Android APK](https://img.shields.io/badge/Android%20APK-Download%20v6.4.0-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/zevbuild/app-zevsafe/releases/latest)
 [![Build Android APK](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml/badge.svg)](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml)
 [![Project Memory](https://img.shields.io/badge/Project%20Memory-Knowledge%20Base-8b5cf6?style=for-the-badge&logo=gitbook&logoColor=white)](PROJECT_MEMORY.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-10b981?style=for-the-badge)](LICENSE)
@@ -12,7 +12,7 @@
 
 ---
 
-> 🟢 **Current stable release — v6.3.0 (`.zev` format):** native Android streaming edition.  
+> 🟢 **Current stable release — v6.4.0 (`.zev` format):** native Android streaming edition.  
 > PBKDF2-SHA512 · 600,000 iterations · 4 MB Chunked AES-256-GCM (`ZV3\0`) · Instant <100ms Vault Explorer · Embedded Media3 Cinema Player · Foreground Service · 100% Zero-Knowledge.  
 > 🧠 **Comprehensive System Architecture & Technical Specifications:** See [**`PROJECT_MEMORY.md`**](PROJECT_MEMORY.md) & [**`PROJECT-MEMORY/`**](PROJECT-MEMORY/).
 
@@ -29,10 +29,13 @@
 | 🔐 **v3 STREAM AEAD (`ZV3\0`)** | 4 MB chunked AES-256-GCM with per-chunk 12B counter IVs and 42B AAD container binding |
 | 🛡️ **PBKDF2-SHA512 (600,000 iters)** | Military-grade key stretching with 32-byte CSPRNG random salt |
 | 🗝️ **Keyfile 2FA (Physical 2nd Factor)** | SHA-256 fingerprint mixed into raw key bytes via bitwise XOR |
-| ⚡ **Instant Vault Explorer (<100ms)** | Reads encrypted tail manifest trailer directly without buffering or decrypting the whole vault |
-| 🎬 **Embedded Cinema Media Player** | Direct playback for decrypted video (`.mp4`, `.mov`, `.webm`, `.mkv`) and audio (`.mp3`, `.wav`, `.flac`) via AndroidX Media3 (ExoPlayer) with zero disk writes |
+| ⚡ **Instant Vault Explorer & Single-File Extraction** | Reads encrypted tail manifest (<100ms) with stream-measured sizes; extracts individual files for preview via direct 4 MB chunk seeking (<100ms, <15 MB RAM) without decrypting entire vault |
+| 🎬 **Fullscreen Video Player (`VideoPlayerActivity`)** | Dedicated edge-to-edge Compose video player with auto-hiding cyber overlay, 10s seek, orientation lock, volume toggle, and Media3 ExoPlayer engine |
+| 🎵 **Cyber Audio Player (`AudioPlayerModal`)** | Glowing rotating vinyl album-art disc, 14-bar animated equalizer, seekbar timestamps, loop toggle, and speed selector (1.0x-2.0x) |
+| 📄 **Document Viewer & Open-With Fallback** | Dynamic `FileProvider` intent launcher (`ACTION_VIEW`) with system chooser and share fallback for PDFs, office docs, and binary files |
 | 🔋 **Android Foreground Service** | Persistent notification (MB/s, ETA, progress bar) & WakeLock for 5 GB operations |
 | 📂 **Android System Intents** | Full `.zev` file association (`ACTION_VIEW`) + Share Target (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`) |
+| 📊 **Cyber-Dark Telemetry & UI/UX** | Real-time MB/s throughput gauge, glowing animated dropzones, expandable file list preview, persistent in-screen action cards, MIME-coded rows, extension tags, and floating Export All FAB |
 | 📁 **Resilient File & Folder Picker** | Interactive dropzone, dual OpenDocument/OpenMultipleDocuments contracts, and 5-tier SAF URI fallback |
 | 🔄 **Tri-Format Compatibility** | Auto-detects and seamlessly decrypts v1 Legacy, v2 Standard, and v3 Streaming vaults |
 | 🌐 **100% Offline & Zero-Knowledge** | Zero network calls; passwords and keys never touch non-volatile disk unencrypted |
@@ -192,6 +195,14 @@ The automated workflow ([`.github/workflows/build-apk.yml`](.github/workflows/bu
 - Assembles both signed `debug` and `release` APKs.
 - Automatically attaches the `.apk` binaries to a GitHub Release whenever a version tag (`v*`) is pushed.
 
+### 🧪 Running Automated Unit Tests
+```bash
+# Run the 40-test 4-tier cryptographic & E2E test suite
+./gradlew testDebugUnitTest --no-daemon
+# Or using system gradle:
+gradle testDebugUnitTest --no-daemon
+```
+
 ### 🛠️ Building Android App Locally
 ```bash
 # Build debug APK (signed with debug keystore, ready for installation)
@@ -241,8 +252,8 @@ app-zevsafe/
 │   │   ├── ui/                    # Screens (HomeScreen, Encrypt, Decrypt, VaultBrowser) & components
 │   │   ├── viewmodel/             # VaultViewModel.kt (MVVM, MediaStore.Downloads auto-saving)
 │   │   └── MainActivity.kt        # Single activity, Material 3, intent handling
-│   ├── src/main/res/              # Adaptive mipmaps, colors, strings, themes, file_paths.xml
-│   ├── src/test/java/             # CryptoUnitTest.kt (100% cryptographic unit test suite)
+│   ├── src/main/res/              # Adaptive mipmaps, colors, themes, file_paths.xml
+│   ├── src/test/java/             # CryptoUnitTest.kt (40-test 4-tier cryptographic & E2E test suite)
 │   ├── build.gradle.kts           # Android module build configuration (compileSdk 35)
 │   └── proguard-rules.pro         # ProGuard code shrinking & optimization rules
 ├── PROJECT_MEMORY.md              # System Memory & architectural technical reference

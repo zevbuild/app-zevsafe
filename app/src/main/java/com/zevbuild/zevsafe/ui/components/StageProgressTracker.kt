@@ -2,6 +2,10 @@ package com.zevbuild.zevsafe.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +27,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -33,9 +38,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zevbuild.zevsafe.crypto.CryptoEngine
@@ -48,9 +55,11 @@ import com.zevbuild.zevsafe.ui.theme.PurplePrimary
 import com.zevbuild.zevsafe.ui.theme.Success
 import com.zevbuild.zevsafe.ui.theme.SurfaceVariantDark
 import com.zevbuild.zevsafe.ui.theme.TealLight
+import com.zevbuild.zevsafe.ui.theme.TealPrimary
 import com.zevbuild.zevsafe.ui.theme.TextMuted
 import com.zevbuild.zevsafe.ui.theme.TextPrimary
 import com.zevbuild.zevsafe.ui.theme.TextSecondary
+import java.util.Locale
 
 @Composable
 fun StageProgressTracker(
@@ -65,17 +74,28 @@ fun StageProgressTracker(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(SurfaceVariantDark.copy(alpha = 0.85f))
-            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+            .background(SurfaceVariantDark.copy(alpha = 0.88f))
+            .border(
+                BorderStroke(
+                    1.dp,
+                    if (progressState.overallPercent >= 100f) Success.copy(alpha = 0.4f)
+                    else if (progressState.speedMBs > 0.0) TealLight.copy(alpha = 0.4f)
+                    else CardBorder
+                ),
+                RoundedCornerShape(16.dp)
+            )
             .padding(16.dp)
     ) {
-        // Overall title & percentage
+        // Overall title, throughput speed gauge, & percentage badge
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
                 Box(
                     modifier = Modifier
                         .size(10.dp)
@@ -92,22 +112,90 @@ fun StageProgressTracker(
                 Text(
                     text = progressState.currentTitle.ifEmpty { if (isEncrypt) "Encrypting Vault..." else "Decrypting Vault..." },
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
-            Text(
-                text = "${progressState.overallPercent.toInt()}%",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = if (progressState.overallPercent >= 100f) Success else PurpleLight
-            )
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Live throughput speed gauge badge
+                if (progressState.speedMBs > 0.0) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(TealPrimary.copy(alpha = 0.18f))
+                            .border(
+                                BorderStroke(
+                                    1.dp,
+                                    Brush.horizontalGradient(
+                                        listOf(TealLight.copy(alpha = 0.8f), TealPrimary.copy(alpha = 0.5f))
+                                    )
+                                ),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Speed,
+                                contentDescription = "Throughput",
+                                tint = TealLight,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = String.format(Locale.US, "%.1f MB/s", progressState.speedMBs),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TealLight
+                            )
+                        }
+                    }
+                }
+
+                // Percentage Badge
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (progressState.overallPercent >= 100f) Success.copy(alpha = 0.18f)
+                            else PurplePrimary.copy(alpha = 0.22f)
+                        )
+                        .border(
+                            1.dp,
+                            if (progressState.overallPercent >= 100f) Success.copy(alpha = 0.6f)
+                            else PurpleLight.copy(alpha = 0.5f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "${progressState.overallPercent.toInt()}%",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (progressState.overallPercent >= 100f) Success else PurpleLight
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        // Smooth animated linear progress indicator
+        val animatedProgress by animateFloatAsState(
+            targetValue = (progressState.overallPercent / 100f).coerceIn(0f, 1f),
+            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+            label = "tracker_progress_anim"
+        )
+
         LinearProgressIndicator(
-            progress = { (progressState.overallPercent / 100f).coerceIn(0f, 1f) },
+            progress = { animatedProgress },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
@@ -212,28 +300,38 @@ private fun StagePill(
     val bgColor by animateColorAsState(
         targetValue = when (status) {
             StageStatus.COMPLETED -> Success.copy(alpha = 0.15f)
-            StageStatus.IN_PROGRESS -> PurplePrimary.copy(alpha = 0.2f)
+            StageStatus.IN_PROGRESS -> PurplePrimary.copy(alpha = 0.25f)
             StageStatus.FAILED -> Danger.copy(alpha = 0.2f)
             StageStatus.IDLE -> Color.White.copy(alpha = 0.04f)
         },
         label = "stage_bg"
     )
 
-    val borderColor by animateColorAsState(
-        targetValue = when (status) {
-            StageStatus.COMPLETED -> Success.copy(alpha = 0.5f)
-            StageStatus.IN_PROGRESS -> PurpleLight
-            StageStatus.FAILED -> Danger
-            StageStatus.IDLE -> CardBorder
-        },
-        label = "stage_border"
-    )
+    val borderModifier = if (status == StageStatus.IN_PROGRESS) {
+        Modifier.border(
+            BorderStroke(
+                1.5.dp,
+                Brush.horizontalGradient(listOf(PurpleLight, TealLight))
+            ),
+            RoundedCornerShape(10.dp)
+        )
+    } else {
+        val borderColor by animateColorAsState(
+            targetValue = when (status) {
+                StageStatus.COMPLETED -> Success.copy(alpha = 0.5f)
+                StageStatus.FAILED -> Danger
+                else -> CardBorder
+            },
+            label = "stage_border"
+        )
+        Modifier.border(1.dp, borderColor, RoundedCornerShape(10.dp))
+    }
 
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+            .then(borderModifier)
             .padding(vertical = 8.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -251,7 +349,7 @@ private fun StagePill(
                 StageStatus.IN_PROGRESS -> CircularProgressIndicator(
                     modifier = Modifier.size(16.dp),
                     strokeWidth = 2.dp,
-                    color = PurpleLight
+                    color = TealLight
                 )
                 StageStatus.FAILED -> Icon(
                     imageVector = Icons.Default.Close,

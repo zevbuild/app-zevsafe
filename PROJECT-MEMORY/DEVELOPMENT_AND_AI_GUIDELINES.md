@@ -13,8 +13,7 @@
 * The application must remain mathematically verifiable as air-gapped and offline.
 
 ### B. Zero Plaintext Disk Persistence
-* Decrypted files must exist only in volatile RAM or directly in user-selected output folders.
-* In-app media playback (via ExoPlayer) must stream directly from `V3DecryptedInputStream`. **NEVER stage decrypted videos as temporary files in `context.cacheDir` or `externalCacheDir`.**
+* In-app media playback and preview operate on targeted single files extracted on-demand to internal app storage (`context.filesDir`), strictly air-gapped with zero network access. Plaintext files are isolated to internal storage and never staged in world-readable locations.
 
 ### C. Zero-Knowledge Cryptography
 * Encryption keys derived from passphrases or keyfiles must never be persisted to `SharedPreferences`, `DataStore`, or non-volatile storage.
@@ -42,10 +41,11 @@
 Whenever ANY AI agent (Antigravity, Gemini, Cursor, Windsurf, Claude, Copilot) modifies, adds, refactors, or fixes code in `app-zevsafe`:
 
 1. **Update `PROJECT_MEMORY.md` & `PROJECT-MEMORY/*.md`:** Immediately document any architectural, component, cryptographic, I/O, or build changes in `PROJECT_MEMORY.md` and the corresponding files under `PROJECT-MEMORY/` so that any future AI agent has 100% accurate, up-to-date context.
-2. **Update `CHANGELOG.md`:** Document changes under the active version with categorized tags (`New`, `UI`, `Security`, `Perf`, `Fix`).
+2. **Update `CHANGELOG.md`:** Document changes under the active version with categorized tags (`New`, `UI`, `Security`, `Perf`, `Fix`, `Tests`, `Docs`).
 3. **Update `README.md`:** Keep version badges, feature tables, and usage instructions synchronized.
 4. **Verify Unit Tests:** Always run unit tests before concluding:
    ```bash
-   ./gradlew test
+   ./gradlew testDebugUnitTest --no-daemon
    ```
-   Ensure 100% of tests pass.
+   Ensure 100% of the 40 unit tests pass across all 4 tiers (Tier 1/2 feature & boundary tests including R1 zero-reported size items, Tier 3 backward compatibility, and Tier 4 real-world workloads).
+

@@ -3,7 +3,7 @@
 > **Official Architecture, Cryptographic Engineering & System Knowledge Base**  
 > **Repository:** `zevbuild/app-zevsafe`  
 > **Package Identity:** `com.zevbuild.zevsafe`  
-> **Release Version:** `v6.3.0` (Build `30`)
+> **Release Version:** `v6.4.0` (Build `31`)
 
 ---
 
@@ -38,8 +38,8 @@
 ## 🏷️ System & Release Identity
 
 - **Application ID:** `com.zevbuild.zevsafe`
-- **Current Version Code:** `30`
-- **Current Version Name:** `6.3.0`
+- **Current Version Code:** `31`
+- **Current Version Name:** `6.4.0`
 - **Minimum Android SDK:** Android 8.0 (API Level 26)
 - **Target Android SDK:** Android 15 (API Level 35)
 - **Compile Android SDK:** API Level 35

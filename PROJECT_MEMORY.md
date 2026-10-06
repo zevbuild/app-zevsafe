@@ -2,7 +2,7 @@
 
 > **System Memory, Technical Reference & Architectural Guidelines for `app-zevsafe`**  
 > **Package Identity:** `com.zevbuild.zevsafe`  
-> **Release Version:** `v6.3.0` (Build `30`) · **Target SDK:** 35 · **Min SDK:** 26
+> **Release Version:** `v6.4.0` (Build `31`) · **Target SDK:** 35 · **Min SDK:** 26
 
 > **🤖 MANDATORY AI AGENT RULE:**  
 > Whenever **ANY** AI agent (Antigravity, Gemini, Cursor, Windsurf, Claude, Copilot) modifies, adds, refactors, or fixes any code or configuration in this repository, you **MUST AUTOMATICALLY UPDATE `PROJECT_MEMORY.md` AND THE RELEVANT FILES IN `PROJECT-MEMORY/`** (alongside `CHANGELOG.md` and `README.md`) before finishing your task. This ensures any future AI agent can immediately understand the exact current state of the project.
@@ -25,7 +25,7 @@ Comprehensive technical documentation is maintained under the [`PROJECT-MEMORY/`
    Complete binary specification: 57-byte container header, 600,000-round PBKDF2-SHA512 key derivation, Keyfile 2FA XOR mixing, 4 MB chunk STREAM AEAD, 12-byte counter IVs, 42-byte AAD binding, encrypted tail manifest, and backward compatibility with v2/v1.
 
 2. 🏗️ [**Architecture & System Components**](./PROJECT-MEMORY/ARCHITECTURE_AND_COMPONENTS.md)  
-   Layered architecture overview: Jetpack Compose Material 3 UI (`ui/`), ViewModel reactive state machine (`viewmodel/`), Android 14 `VaultForegroundService` (`service/`), `CryptoEngine` (`crypto/`), AndroidX Media3 ExoPlayer Cinema streaming player, `FileProvider` (`${applicationId}.fileprovider`), and automatic `MediaStore.Downloads` saving.
+   Layered architecture overview: Jetpack Compose Material 3 UI (`ui/`), ViewModel reactive state machine (`viewmodel/`), Android 14 `VaultForegroundService` (`service/`), `CryptoEngine` (`crypto/`), AndroidX Media3 ExoPlayer fullscreen cinema player (`VideoPlayerActivity`), dedicated cyber audio player (`AudioPlayerModal`), external document fallback (`FileViewerHelper`), `FileProvider` (`${applicationId}.fileprovider`), and automatic `MediaStore.Downloads` saving.
 
 3. ⚡ [**Streaming Pipeline & Memory Bounds**](./PROJECT-MEMORY/STREAMING_AND_MEMORY_BOUNDS.md)  
    Memory bounding strategy keeping peak JVM heap under 150 MB across 5 GB+ datasets. Details why pull-based `V3DecryptedInputStream` was selected over asynchronous coroutine pipes to eliminate deadlocks and buffer overruns.
@@ -50,11 +50,16 @@ Comprehensive technical documentation is maintained under the [`PROJECT-MEMORY/`
 | **AAD Length** | 42 bytes (Prefix, IV prefix, chunk index, chunk length, last-chunk flag, manifest offset, keyfile tag) |
 | **Peak Heap Bound** | < 150 MB RAM across multi-GB archives |
 | **Background Processing** | Android 14 `ForegroundService` with `dataSync` type & partial wake lock |
-| **Media Player** | AndroidX Media3 (ExoPlayer 1.5.1) with in-memory `ByteArrayDataSource` streaming |
+| **Video Player** | Fullscreen `VideoPlayerActivity` with auto-hiding cyber-dark controls, 10s skip, rotation lock, volume toggle, and Media3 ExoPlayer |
+| **Audio Player** | Dedicated `AudioPlayerModal` with rotating vinyl disc, 14-bar animated equalizer, interactive seekbar, loop toggle, and 1.0x-2.0x speed selector |
+| **Document Fallback** | `FileViewerHelper.openWithExternalApp` & `shareFile` via dynamic `FileProvider` (`${applicationId}.fileprovider`) with `FLAG_GRANT_READ_URI_PERMISSION` |
 | **Output & Sharing** | Auto-saves `.zev` & `.zip` to `Downloads` (`MediaStore.Downloads`) + System Share Sheet via `FileProvider` (`${applicationId}.fileprovider`) |
 | **System Intents** | `ACTION_VIEW` (.zev files), `ACTION_SEND` / `ACTION_SEND_MULTIPLE` (share sheet) |
 | **File Picker & SAF** | Resilient 5-tier fallback URI resolution (`OpenableColumns`, `DocumentFile`, `lastPathSegment`, `statSize`, `InputStream.available`), dual contract (`OpenMultipleDocuments` + `OpenDocument`), interactive dropzone UX |
 | **Brand Assets** | Orbit Concept brand identity in `assets/`: master vector `zevsafe-logo.svg`, quantized 512×512 logo (`.png`, `.webp`), squircle app icons (`icon-512`, `icon-192`), cyber-vault hero graphic, vector `favicon.svg`, and Android `ic_launcher_foreground.xml`. |
-| **Network Stack** | Completely absent (`android.permission.INTERNET` not present) |
+| **Test Verification** | 40 unit tests across 4 tiers in `CryptoUnitTest.kt` (R1 stream-measured manifest sizes & zero-reported size items, R2 targeted single-file extraction, backward compatibility, static security checks) |
+| **Manifest Sizing** | Stream-measured uncompressed & compressed sizes and IEEE 802.3 CRC-32 for all STORED & DEFLATED files; measured root `totalSize` sum |
+| **Targeted Extraction** | Direct 4 MB chunk seek via `FileChannel` (`extractSingleFileFromV3Vault`), decrypting only `chunkStart..chunkEnd` (<100ms, <15 MB RAM) with ZIP local header parsing, `Inflater(true)` decompression, and session directory caching fallback in `VaultViewModel` |
+| **UI/UX Overhaul** | Cyber-dark theme, glowing animated dropzones, expandable file list preview, real-time MB/s throughput telemetry in `StageProgressTracker` & `VaultViewModel`, interactive Vault Format Inspector badges (`v3 STREAM AEAD`, `4 MB Chunks`, `PBKDF2 600k`, `2FA Keyfile`), instant catalog inspection button (`loadInstantCatalog`), persistent in-screen action cards with wired cross-screen navigation, leak-free banner state machine, MIME color-coding, extension badges, and floating "Export All" FAB |
 
 

@@ -16,6 +16,7 @@ import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.channels.FileChannel
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
@@ -23,6 +24,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.CRC32
 import java.util.zip.Deflater
+import java.util.zip.Inflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -342,110 +344,121 @@ object CryptoEngine {
     }
 
     suspend fun readV3VaultManifest(
+        inStream: InputStream,
+        password: CharArray,
+        keyfileHash: ByteArray? = null
+    ): VaultCatalog = withContext(Dispatchers.IO) {
+        val header = parseVaultHeader(inStream)
+        if (header.version != VaultVersion.V3) {
+            throw IllegalArgumentException("Vault is not a v3 streaming container")
+        }
+        if (header.requiresKeyfile && keyfileHash == null) {
+            throw IllegalArgumentException("This v3 vault requires a keyfile")
+        }
+
+        val secretKey = deriveKeyV3(password, header.salt, keyfileHash)
+        val manifestOffset = header.manifestOffset
+        if (manifestOffset <= V3_HEADER_SIZE) {
+            throw IllegalArgumentException("Invalid manifest offset in v3 vault")
+        }
+
+        // Skip to manifest offset
+        var skipped = V3_HEADER_SIZE.toLong()
+        while (skipped < manifestOffset) {
+            val skipStep = inStream.skip(manifestOffset - skipped)
+            if (skipStep <= 0) break
+            skipped += skipStep
+        }
+
+        // Read the manifest envelope header (48 bytes)
+        val envelopeHeaderBytes = ByteArray(MANIFEST_HEADER_SIZE)
+        val readHdr = inStream.read(envelopeHeaderBytes)
+        if (readHdr != MANIFEST_HEADER_SIZE) {
+            throw IllegalArgumentException("Incomplete manifest envelope header")
+        }
+
+        val buf = ByteBuffer.wrap(envelopeHeaderBytes).order(ByteOrder.BIG_ENDIAN)
+        buf.position(MANIFEST_SALT_LENGTH + MANIFEST_IV_LENGTH)
+        val declaredLen = buf.int
+        val totalEnvelopeSize = MANIFEST_HEADER_SIZE + declaredLen + TAG_LENGTH
+
+        val fullEnvelope = ByteArray(totalEnvelopeSize)
+        System.arraycopy(envelopeHeaderBytes, 0, fullEnvelope, 0, MANIFEST_HEADER_SIZE)
+
+        var offset = MANIFEST_HEADER_SIZE
+        val payloadBuffer = ByteArray(BUFFER_SIZE)
+        while (offset < totalEnvelopeSize) {
+            val toRead = Math.min(payloadBuffer.size, totalEnvelopeSize - offset)
+            val read = inStream.read(payloadBuffer, 0, toRead)
+            if (read == -1) break
+            System.arraycopy(payloadBuffer, 0, fullEnvelope, offset, read)
+            offset += read
+        }
+
+        val jsonString = decryptManifestEnvelope(fullEnvelope, secretKey)
+        val root = JSONObject(jsonString)
+        val filesJson = root.getJSONArray("files")
+        val entries = mutableListOf<DecryptedFileEntry>()
+
+        for (i in 0 until filesJson.length()) {
+            val item = filesJson.getJSONObject(i)
+            val path = item.optString("path", item.optString("name", "unnamed"))
+            val size = item.optLong("size", item.optLong("uncompressedSize", 0L))
+            val compSize = item.optLong("compressedSize", size)
+            val lho = item.optLong("localHeaderOffset", item.optLong("offset", 0L))
+            val isComp = item.optBoolean("compressed", false)
+            val crc = item.optLong("crc32", 0L)
+            val chunkStart = item.optInt("chunkStart", (lho / DEFAULT_CHUNK_SIZE).toInt())
+            val chunkEnd = item.optInt("chunkEnd", ((lho + 30 + path.length + compSize) / DEFAULT_CHUNK_SIZE).toInt())
+
+            val name = path.substringAfterLast('/')
+            val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+            val mimeType = resolveMimeType(ext)
+
+            entries.add(
+                DecryptedFileEntry(
+                    path = path,
+                    name = name,
+                    sizeBytes = size,
+                    isDirectory = path.endsWith("/"),
+                    mimeType = mimeType,
+                    localHeaderOffset = lho,
+                    compressedSize = compSize,
+                    isCompressed = isComp,
+                    crc32 = crc,
+                    chunkStart = chunkStart,
+                    chunkEnd = chunkEnd
+                )
+            )
+        }
+
+        return@withContext VaultCatalog(
+            version = 3,
+            totalSize = root.optLong("totalSize", 0L),
+            fileCount = entries.size,
+            files = entries
+        )
+    }
+
+    suspend fun readV3VaultManifest(
         context: Context,
         vaultUri: Uri,
         password: CharArray,
-        keyfileHash: ByteArray?
+        keyfileHash: ByteArray? = null
     ): VaultCatalog = withContext(Dispatchers.IO) {
         context.contentResolver.openInputStream(vaultUri)?.use { inStream ->
-            val header = parseVaultHeader(inStream)
-            if (header.version != VaultVersion.V3) {
-                throw IllegalArgumentException("Vault is not a v3 streaming container")
-            }
-            if (header.requiresKeyfile && keyfileHash == null) {
-                throw IllegalArgumentException("This v3 vault requires a keyfile")
-            }
-
-            val secretKey = deriveKeyV3(password, header.salt, keyfileHash)
-            val manifestOffset = header.manifestOffset
-            if (manifestOffset <= V3_HEADER_SIZE) {
-                throw IllegalArgumentException("Invalid manifest offset in v3 vault")
-            }
-
-            // Skip to manifest offset
-            var skipped = V3_HEADER_SIZE.toLong()
-            while (skipped < manifestOffset) {
-                val skipStep = inStream.skip(manifestOffset - skipped)
-                if (skipStep <= 0) break
-                skipped += skipStep
-            }
-
-            // Read the manifest envelope header (48 bytes)
-            val envelopeHeaderBytes = ByteArray(MANIFEST_HEADER_SIZE)
-            val readHdr = inStream.read(envelopeHeaderBytes)
-            if (readHdr != MANIFEST_HEADER_SIZE) {
-                throw IllegalArgumentException("Incomplete manifest envelope header")
-            }
-
-            val buf = ByteBuffer.wrap(envelopeHeaderBytes).order(ByteOrder.BIG_ENDIAN)
-            buf.position(MANIFEST_SALT_LENGTH + MANIFEST_IV_LENGTH)
-            val declaredLen = buf.int
-            val totalEnvelopeSize = MANIFEST_HEADER_SIZE + declaredLen + TAG_LENGTH
-
-            val fullEnvelope = ByteArray(totalEnvelopeSize)
-            System.arraycopy(envelopeHeaderBytes, 0, fullEnvelope, 0, MANIFEST_HEADER_SIZE)
-
-            var offset = MANIFEST_HEADER_SIZE
-            val payloadBuffer = ByteArray(BUFFER_SIZE)
-            while (offset < totalEnvelopeSize) {
-                val toRead = Math.min(payloadBuffer.size, totalEnvelopeSize - offset)
-                val read = inStream.read(payloadBuffer, 0, toRead)
-                if (read == -1) break
-                System.arraycopy(payloadBuffer, 0, fullEnvelope, offset, read)
-                offset += read
-            }
-
-            val jsonString = decryptManifestEnvelope(fullEnvelope, secretKey)
-            val root = JSONObject(jsonString)
-            val filesJson = root.getJSONArray("files")
-            val entries = mutableListOf<DecryptedFileEntry>()
-
-            for (i in 0 until filesJson.length()) {
-                val item = filesJson.getJSONObject(i)
-                val path = item.optString("path", item.optString("name", "unnamed"))
-                val size = item.optLong("size", item.optLong("uncompressedSize", 0L))
-                val compSize = item.optLong("compressedSize", size)
-                val lho = item.optLong("localHeaderOffset", item.optLong("offset", 0L))
-                val isComp = item.optBoolean("compressed", false)
-                val crc = item.optLong("crc32", 0L)
-
-                val name = path.substringAfterLast('/')
-                val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
-                val mimeType = resolveMimeType(ext)
-
-                entries.add(
-                    DecryptedFileEntry(
-                        path = path,
-                        name = name,
-                        sizeBytes = size,
-                        isDirectory = path.endsWith("/"),
-                        mimeType = mimeType,
-                        localHeaderOffset = lho,
-                        compressedSize = compSize,
-                        isCompressed = isComp,
-                        crc32 = crc,
-                        chunkStart = (lho / DEFAULT_CHUNK_SIZE).toInt(),
-                        chunkEnd = ((lho + 30 + path.length + compSize) / DEFAULT_CHUNK_SIZE).toInt()
-                    )
-                )
-            }
-
-            return@withContext VaultCatalog(
-                version = 3,
-                totalSize = root.optLong("totalSize", 0L),
-                fileCount = entries.size,
-                files = entries
-            )
+            readV3VaultManifest(inStream, password, keyfileHash)
         } ?: throw IllegalArgumentException("Cannot open vault file")
     }
 
     suspend fun encryptItemsToV3Vault(
-        context: Context,
+        context: Context?,
         items: List<SelectedItem>,
         outputVaultFile: File,
         password: CharArray,
-        keyfileHash: ByteArray?,
-        onProgress: (Float, Long, Long) -> Unit
+        keyfileHash: ByteArray? = null,
+        inputStreamProvider: ((SelectedItem) -> InputStream?)? = null,
+        onProgress: (Float, Long, Long) -> Unit = { _, _, _ -> }
     ) = withContext(Dispatchers.IO) {
         val random = SecureRandom()
         val salt = ByteArray(SALT_LENGTH).apply { random.nextBytes(this) }
@@ -457,6 +470,7 @@ object CryptoEngine {
 
         val totalSourceBytes = items.sumOf { it.sizeBytes }
         var processedSourceBytes = 0L
+        var totalMeasuredBytes = 0L
 
         val catalogEntries = JSONArray()
         var currentZipOffset = 0L
@@ -522,48 +536,92 @@ object CryptoEngine {
                     val entryOffset = currentZipOffset
                     val zipEntry = ZipEntry(item.relativePath)
                     val crc = CRC32()
+                    var measuredUncompressedSize = 0L
+                    var measuredCompressedSize = 0L
+
+                    val openStream: () -> InputStream = {
+                        inputStreamProvider?.invoke(item)
+                            ?: context?.contentResolver?.openInputStream(item.uri)
+                            ?: throw java.io.IOException("Cannot open input stream for ${item.name}")
+                    }
 
                     if (isPrecompressed) {
                         zipEntry.method = ZipEntry.STORED
-                        var actualSize = 0L
 
-                        // Calculate CRC32 and measure exact byte length for STORED entry
-                        context.contentResolver.openInputStream(item.uri)?.use { inStream ->
+                        // Measure exact length and CRC32 for STORED entry
+                        openStream().use { inStream ->
                             var read: Int
                             while (inStream.read(ioBuffer).also { read = it } != -1) {
                                 crc.update(ioBuffer, 0, read)
-                                actualSize += read
+                                measuredUncompressedSize += read
                             }
-                        } ?: throw java.io.IOException("Cannot open input stream for ${item.name}")
+                        }
 
-                        zipEntry.size = actualSize
-                        zipEntry.compressedSize = actualSize
+                        zipEntry.size = measuredUncompressedSize
+                        zipEntry.compressedSize = measuredUncompressedSize
                         zipEntry.crc = crc.value
+                        measuredCompressedSize = measuredUncompressedSize
                     }
 
                     zipOut.putNextEntry(zipEntry)
 
-                    context.contentResolver.openInputStream(item.uri)?.use { inStream ->
+                    var writtenUncompressedBytes = 0L
+                    openStream().use { inStream ->
                         var read: Int
                         while (inStream.read(ioBuffer).also { read = it } != -1) {
+                            if (!isPrecompressed) {
+                                crc.update(ioBuffer, 0, read)
+                            }
                             zipOut.write(ioBuffer, 0, read)
+                            writtenUncompressedBytes += read
                             processedSourceBytes += read
                             if (totalSourceBytes > 0) {
                                 val pct = (processedSourceBytes.toFloat() / totalSourceBytes) * 100f
                                 onProgress(pct.coerceIn(0f, 98f), processedSourceBytes, totalSourceBytes)
+                            } else {
+                                val mb = processedSourceBytes.toFloat() / (1024f * 1024f)
+                                val simulatedPct = (mb * 10f).coerceIn(0f, 95f)
+                                onProgress(simulatedPct, processedSourceBytes, processedSourceBytes)
                             }
                         }
                     }
                     zipOut.closeEntry()
 
+                    if (!isPrecompressed) {
+                        measuredUncompressedSize = writtenUncompressedBytes
+                        if (writtenUncompressedBytes == 0L) {
+                            measuredCompressedSize = 0L
+                        } else {
+                            val zipReportedCompSize = zipEntry.compressedSize
+                            measuredCompressedSize = if (zipReportedCompSize > 0L) {
+                                zipReportedCompSize
+                            } else {
+                                val headerEstimate = 30L + item.relativePath.toByteArray(Charsets.UTF_8).size + 16L
+                                val delta = currentZipOffset - entryOffset
+                                val estimatedPayload = delta - headerEstimate
+                                if (estimatedPayload > 0L) estimatedPayload else writtenUncompressedBytes
+                            }
+                        }
+                    }
+
+                    val finalSize = measuredUncompressedSize
+                    val finalCompSize = measuredCompressedSize
+                    totalMeasuredBytes += finalSize
+
+                    val chunkStart = (entryOffset / DEFAULT_CHUNK_SIZE).toInt()
+                    val chunkEnd = ((entryOffset + 30 + item.relativePath.length + finalCompSize) / DEFAULT_CHUNK_SIZE).toInt()
+
                     val entryJson = JSONObject().apply {
                         put("path", item.relativePath)
                         put("name", item.name)
-                        put("size", item.sizeBytes)
-                        put("compressedSize", if (isPrecompressed) item.sizeBytes else item.sizeBytes)
+                        put("size", finalSize)
+                        put("uncompressedSize", finalSize)
+                        put("compressedSize", finalCompSize)
                         put("localHeaderOffset", entryOffset)
                         put("compressed", !isPrecompressed)
                         put("crc32", crc.value)
+                        put("chunkStart", chunkStart)
+                        put("chunkEnd", chunkEnd)
                     }
                     catalogEntries.put(entryJson)
                 }
@@ -578,8 +636,8 @@ object CryptoEngine {
             // Write Manifest Envelope
             val catalogRoot = JSONObject().apply {
                 put("version", 3)
-                put("totalSize", totalSourceBytes)
-                put("fileCount", items.size)
+                put("totalSize", if (totalMeasuredBytes > 0L) totalMeasuredBytes else totalSourceBytes)
+                put("fileCount", catalogEntries.length())
                 put("files", catalogEntries)
             }
             val manifestEnvelope = encryptManifestEnvelope(catalogRoot.toString(), secretKey, salt)
@@ -592,85 +650,468 @@ object CryptoEngine {
             raf.write(offsetBuf.array())
         }
 
-        onProgress(100f, totalSourceBytes, totalSourceBytes)
+        val finalTotal = if (totalMeasuredBytes > 0L) totalMeasuredBytes else totalSourceBytes
+        onProgress(100f, finalTotal, finalTotal)
     }
+
+    suspend fun encryptItemsToV3Vault(
+        streamOpener: (SelectedItem) -> InputStream,
+        items: List<SelectedItem>,
+        outputVaultFile: File,
+        password: CharArray,
+        keyfileHash: ByteArray? = null,
+        onProgress: (Float, Long, Long) -> Unit = { _, _, _ -> }
+    ) = encryptItemsToV3Vault(
+        context = null,
+        items = items,
+        outputVaultFile = outputVaultFile,
+        password = password,
+        keyfileHash = keyfileHash,
+        inputStreamProvider = streamOpener,
+        onProgress = onProgress
+    )
+
+    suspend fun decryptV3VaultStreamToDirectory(
+        inStream: InputStream,
+        outputDir: File,
+        password: CharArray,
+        keyfileHash: ByteArray? = null,
+        onProgress: (Float, String) -> Unit = { _, _ -> }
+    ): List<DecryptedFileEntry> = withContext(Dispatchers.IO) {
+        val entries = mutableListOf<DecryptedFileEntry>()
+
+        val header = parseVaultHeader(inStream)
+        if (header.version != VaultVersion.V3) {
+            throw IllegalArgumentException("Expected v3 vault format")
+        }
+        if (header.requiresKeyfile && keyfileHash == null) {
+            throw IllegalArgumentException("Keyfile required for this vault")
+        }
+
+        val secretKey = deriveKeyV3(password, header.salt, keyfileHash)
+        val baseIV = header.baseIVPrefix ?: throw IllegalArgumentException("Missing base IV")
+        val manifestOffset = header.manifestOffset
+
+        val decryptedStream = V3DecryptedInputStream(
+            inStream = inStream,
+            secretKey = secretKey,
+            baseIVPrefix = baseIV,
+            salt = header.salt,
+            manifestOffset = manifestOffset
+        ) { pct ->
+            onProgress(pct, "Decrypting and extracting files (${pct.toInt()}%)...")
+        }
+
+        ZipInputStream(decryptedStream.buffered()).use { zis ->
+            var zipEntry: ZipEntry?
+            while (zis.nextEntry.also { zipEntry = it } != null) {
+                val entry = zipEntry!!
+                val targetFile = File(outputDir, entry.name)
+                if (entry.isDirectory) {
+                    targetFile.mkdirs()
+                } else {
+                    targetFile.parentFile?.mkdirs()
+                    FileOutputStream(targetFile).buffered().use { fos ->
+                        val buf = ByteArray(BUFFER_SIZE)
+                        var r: Int
+                        while (zis.read(buf).also { r = it } != -1) {
+                            fos.write(buf, 0, r)
+                        }
+                    }
+
+                    val ext = targetFile.extension.lowercase(Locale.ROOT)
+                    val mimeType = resolveMimeType(ext)
+                    var textPreview: String? = null
+                    if (mimeType.startsWith("text/") && targetFile.length() < 256 * 1024) {
+                        textPreview = targetFile.readText(Charsets.UTF_8).take(2000)
+                    }
+
+                    val fileUri = try {
+                        Uri.fromFile(targetFile)
+                    } catch (_: Throwable) {
+                        null
+                    }
+
+                    entries.add(
+                        DecryptedFileEntry(
+                            path = entry.name,
+                            name = targetFile.name,
+                            sizeBytes = targetFile.length(),
+                            isDirectory = false,
+                            mimeType = mimeType,
+                            localFileUri = fileUri,
+                            textContentPreview = textPreview
+                        )
+                    )
+                }
+                zis.closeEntry()
+            }
+        }
+
+        onProgress(100f, "Extraction complete")
+        return@withContext entries
+    }
+
+    suspend fun decryptV3VaultToDirectory(
+        inStream: InputStream,
+        outputDir: File,
+        password: CharArray,
+        keyfileHash: ByteArray? = null,
+        onProgress: (Float, String) -> Unit = { _, _ -> }
+    ): List<DecryptedFileEntry> = decryptV3VaultStreamToDirectory(inStream, outputDir, password, keyfileHash, onProgress)
 
     suspend fun decryptV3VaultToDirectory(
         context: Context,
         vaultUri: Uri,
         outputDir: File,
         password: CharArray,
-        keyfileHash: ByteArray?,
-        onProgress: (Float, String) -> Unit
+        keyfileHash: ByteArray? = null,
+        onProgress: (Float, String) -> Unit = { _, _ -> }
     ): List<DecryptedFileEntry> = withContext(Dispatchers.IO) {
-        val entries = mutableListOf<DecryptedFileEntry>()
-
         context.contentResolver.openInputStream(vaultUri)?.use { inStream ->
-            val header = parseVaultHeader(inStream)
-            if (header.version != VaultVersion.V3) {
-                throw IllegalArgumentException("Expected v3 vault format")
-            }
-            if (header.requiresKeyfile && keyfileHash == null) {
-                throw IllegalArgumentException("Keyfile required for this vault")
-            }
+            decryptV3VaultStreamToDirectory(inStream, outputDir, password, keyfileHash, onProgress)
+        } ?: throw IllegalArgumentException("Cannot open vault file")
+    }
 
-            val secretKey = deriveKeyV3(password, header.salt, keyfileHash)
-            val baseIV = header.baseIVPrefix ?: throw IllegalArgumentException("Missing base IV")
-            val manifestOffset = header.manifestOffset
+    suspend fun extractSingleFileFromV3Vault(
+        context: Context,
+        vaultUri: Uri,
+        entry: DecryptedFileEntry,
+        password: CharArray,
+        keyfileHash: ByteArray? = null,
+        outputFile: File
+    ): DecryptedFileEntry = withContext(Dispatchers.IO) {
+        val pfd = try {
+            context.contentResolver.openFileDescriptor(vaultUri, "r")
+        } catch (_: Throwable) {
+            null
+        }
 
-            val decryptedStream = V3DecryptedInputStream(
-                inStream = inStream,
-                secretKey = secretKey,
-                baseIVPrefix = baseIV,
-                salt = header.salt,
-                manifestOffset = manifestOffset
-            ) { pct ->
-                onProgress(pct, "Decrypting and extracting files (${pct.toInt()}%)...")
+        if (pfd != null) {
+            pfd.use { descriptor ->
+                FileInputStream(descriptor.fileDescriptor).channel.use { channel ->
+                    extractSingleFileFromChannel(
+                        channel = channel,
+                        entry = entry,
+                        password = password,
+                        keyfileHash = keyfileHash,
+                        outputFile = outputFile
+                    )
+                }
             }
+        } else {
+            extractSingleFileFromStreamProvider(
+                inStreamProvider = {
+                    context.contentResolver.openInputStream(vaultUri)
+                        ?: throw java.io.IOException("Cannot open input stream for $vaultUri")
+                },
+                entry = entry,
+                password = password,
+                keyfileHash = keyfileHash,
+                outputFile = outputFile
+            )
+        }
+    }
 
-            ZipInputStream(decryptedStream.buffered()).use { zis ->
-                var zipEntry: ZipEntry?
-                while (zis.nextEntry.also { zipEntry = it } != null) {
-                    val entry = zipEntry!!
-                    val targetFile = File(outputDir, entry.name)
-                    if (entry.isDirectory) {
-                        targetFile.mkdirs()
-                    } else {
-                        targetFile.parentFile?.mkdirs()
-                        FileOutputStream(targetFile).buffered().use { fos ->
-                            val buf = ByteArray(BUFFER_SIZE)
-                            var r: Int
-                            while (zis.read(buf).also { r = it } != -1) {
-                                fos.write(buf, 0, r)
-                            }
+    suspend fun extractSingleFileFromV3Vault(
+        vaultFile: File,
+        entry: DecryptedFileEntry,
+        password: CharArray,
+        keyfileHash: ByteArray? = null,
+        outputFile: File
+    ): DecryptedFileEntry = withContext(Dispatchers.IO) {
+        FileInputStream(vaultFile).channel.use { channel ->
+            extractSingleFileFromChannel(
+                channel = channel,
+                entry = entry,
+                password = password,
+                keyfileHash = keyfileHash,
+                outputFile = outputFile
+            )
+        }
+    }
+
+    suspend fun extractSingleFileFromV3Vault(
+        inStreamProvider: () -> InputStream,
+        entry: DecryptedFileEntry,
+        password: CharArray,
+        keyfileHash: ByteArray? = null,
+        outputFile: File
+    ): DecryptedFileEntry = withContext(Dispatchers.IO) {
+        extractSingleFileFromStreamProvider(
+            inStreamProvider = inStreamProvider,
+            entry = entry,
+            password = password,
+            keyfileHash = keyfileHash,
+            outputFile = outputFile
+        )
+    }
+
+    private fun extractSingleFileFromChannel(
+        channel: FileChannel,
+        entry: DecryptedFileEntry,
+        password: CharArray,
+        keyfileHash: ByteArray?,
+        outputFile: File
+    ): DecryptedFileEntry {
+        channel.position(0L)
+        val headerBuf = ByteBuffer.allocate(V3_HEADER_SIZE)
+        while (headerBuf.hasRemaining()) {
+            val r = channel.read(headerBuf)
+            if (r == -1) break
+        }
+        if (headerBuf.hasRemaining()) {
+            throw java.io.IOException("Incomplete v3 header in vault")
+        }
+        val header = parseVaultHeader(ByteArrayInputStream(headerBuf.array()))
+
+        val chunkSize = header.chunkSize
+        val totalFramedChunkSize = chunkSize + CHUNK_HEADER_SIZE + TAG_LENGTH
+        val lastChunkIndex = ((header.manifestOffset - V3_HEADER_SIZE - 1) / totalFramedChunkSize).toInt()
+
+        return extractSingleFileTargetedInternal(
+            header = header,
+            entry = entry,
+            password = password,
+            keyfileHash = keyfileHash,
+            outputFile = outputFile,
+            readChunkBytesFn = { targetChunkIndex ->
+                val chunkVaultStart = V3_HEADER_SIZE + targetChunkIndex.toLong() * totalFramedChunkSize
+                val isLast = (targetChunkIndex == lastChunkIndex) || (chunkVaultStart + totalFramedChunkSize >= header.manifestOffset)
+                val chunkFramedSize = if (isLast) (header.manifestOffset - chunkVaultStart).toInt() else totalFramedChunkSize
+                if (chunkFramedSize < CHUNK_HEADER_SIZE + TAG_LENGTH) {
+                    throw java.io.IOException("Corrupt chunk size $chunkFramedSize at chunk $targetChunkIndex")
+                }
+                channel.position(chunkVaultStart)
+                val chunkBytes = ByteArray(chunkFramedSize)
+                val buf = ByteBuffer.wrap(chunkBytes)
+                while (buf.hasRemaining()) {
+                    val r = channel.read(buf)
+                    if (r == -1) break
+                }
+                if (buf.hasRemaining()) {
+                    throw java.io.IOException("Incomplete chunk read at chunk $targetChunkIndex")
+                }
+                chunkBytes
+            }
+        )
+    }
+
+    private fun extractSingleFileFromStreamProvider(
+        inStreamProvider: () -> InputStream,
+        entry: DecryptedFileEntry,
+        password: CharArray,
+        keyfileHash: ByteArray?,
+        outputFile: File
+    ): DecryptedFileEntry {
+        val header = inStreamProvider().use { inStream ->
+            parseVaultHeader(inStream)
+        }
+        val chunkSize = header.chunkSize
+        val totalFramedChunkSize = chunkSize + CHUNK_HEADER_SIZE + TAG_LENGTH
+        val lastChunkIndex = ((header.manifestOffset - V3_HEADER_SIZE - 1) / totalFramedChunkSize).toInt()
+
+        return extractSingleFileTargetedInternal(
+            header = header,
+            entry = entry,
+            password = password,
+            keyfileHash = keyfileHash,
+            outputFile = outputFile,
+            readChunkBytesFn = { targetChunkIndex ->
+                val chunkVaultStart = V3_HEADER_SIZE + targetChunkIndex.toLong() * totalFramedChunkSize
+                val isLast = (targetChunkIndex == lastChunkIndex) || (chunkVaultStart + totalFramedChunkSize >= header.manifestOffset)
+                val chunkFramedSize = if (isLast) (header.manifestOffset - chunkVaultStart).toInt() else totalFramedChunkSize
+                if (chunkFramedSize < CHUNK_HEADER_SIZE + TAG_LENGTH) {
+                    throw java.io.IOException("Corrupt chunk size $chunkFramedSize at chunk $targetChunkIndex")
+                }
+                inStreamProvider().use { inStream ->
+                    var currentPos = 0L
+                    while (currentPos < chunkVaultStart) {
+                        val toSkip = chunkVaultStart - currentPos
+                        val skipped = inStream.skip(toSkip)
+                        if (skipped <= 0) {
+                            val discard = ByteArray(Math.min(toSkip, BUFFER_SIZE.toLong()).toInt())
+                            val r = inStream.read(discard)
+                            if (r == -1) break
+                            currentPos += r
+                        } else {
+                            currentPos += skipped
                         }
-
-                        val ext = targetFile.extension.lowercase(Locale.ROOT)
-                        val mimeType = resolveMimeType(ext)
-                        var textPreview: String? = null
-                        if (mimeType.startsWith("text/") && targetFile.length() < 256 * 1024) {
-                            textPreview = targetFile.readText(Charsets.UTF_8).take(2000)
-                        }
-
-                        entries.add(
-                            DecryptedFileEntry(
-                                path = entry.name,
-                                name = targetFile.name,
-                                sizeBytes = targetFile.length(),
-                                isDirectory = false,
-                                mimeType = mimeType,
-                                localFileUri = Uri.fromFile(targetFile),
-                                textContentPreview = textPreview
-                            )
-                        )
                     }
-                    zis.closeEntry()
+                    val chunkBytes = ByteArray(chunkFramedSize)
+                    var readTotal = 0
+                    while (readTotal < chunkFramedSize) {
+                        val r = inStream.read(chunkBytes, readTotal, chunkFramedSize - readTotal)
+                        if (r == -1) break
+                        readTotal += r
+                    }
+                    if (readTotal != chunkFramedSize) {
+                        throw java.io.IOException("Incomplete chunk read at chunk $targetChunkIndex")
+                    }
+                    chunkBytes
+                }
+            }
+        )
+    }
+
+    private fun extractSingleFileTargetedInternal(
+        header: VaultHeader,
+        entry: DecryptedFileEntry,
+        password: CharArray,
+        keyfileHash: ByteArray?,
+        outputFile: File,
+        readChunkBytesFn: (chunkIndex: Int) -> ByteArray
+    ): DecryptedFileEntry {
+        if (header.version != VaultVersion.V3) {
+            throw IllegalArgumentException("Targeted single-file extraction requires a v3 streaming vault")
+        }
+        if (header.requiresKeyfile && keyfileHash == null) {
+            throw IllegalArgumentException("This v3 vault requires a keyfile for decryption")
+        }
+
+        val secretKey = deriveKeyV3(password, header.salt, keyfileHash)
+        val baseIV = header.baseIVPrefix ?: throw IllegalArgumentException("Missing base IV prefix in v3 vault header")
+        val manifestOffset = header.manifestOffset
+        val chunkSize = header.chunkSize
+        val totalFramedChunkSize = chunkSize + CHUNK_HEADER_SIZE + TAG_LENGTH
+
+        val lastChunkIndex = ((manifestOffset - V3_HEADER_SIZE - 1) / totalFramedChunkSize).toInt()
+        val effCompSize = if (entry.compressedSize > 0L) entry.compressedSize else entry.sizeBytes
+        val calculatedChunkStart = (entry.localHeaderOffset / chunkSize).toInt()
+        val calculatedChunkEnd = ((entry.localHeaderOffset + 30 + entry.path.length + effCompSize) / chunkSize).toInt()
+
+        val chunkStart = (if (entry.chunkStart >= 0 && entry.chunkStart.toLong() * chunkSize <= entry.localHeaderOffset) {
+            if (entry.chunkStart == 0 && entry.localHeaderOffset >= chunkSize) calculatedChunkStart else entry.chunkStart
+        } else calculatedChunkStart).coerceAtLeast(0)
+
+        val chunkEnd = (if (entry.chunkEnd >= chunkStart) entry.chunkEnd else calculatedChunkEnd).coerceIn(chunkStart, lastChunkIndex)
+
+        val decryptedChunks = mutableListOf<ByteArray>()
+        for (i in chunkStart..chunkEnd) {
+            val chunkVaultStart = V3_HEADER_SIZE + i.toLong() * totalFramedChunkSize
+            val isLast = (i == lastChunkIndex) || (chunkVaultStart + totalFramedChunkSize >= manifestOffset)
+            val chunkBytes = readChunkBytesFn(i)
+            val plain = decryptChunk(secretKey, chunkBytes, baseIV, i, isLast, header.salt)
+            decryptedChunks.add(plain)
+        }
+
+        var spanBytes: ByteArray = if (decryptedChunks.size == 1) {
+            decryptedChunks[0]
+        } else {
+            val totalLen = decryptedChunks.sumOf { it.size }
+            val merged = ByteArray(totalLen)
+            var destPos = 0
+            for (c in decryptedChunks) {
+                System.arraycopy(c, 0, merged, destPos, c.size)
+                destPos += c.size
+            }
+            merged
+        }
+
+        val spanBaseOffset = chunkStart.toLong() * chunkSize
+        val relPos = (entry.localHeaderOffset - spanBaseOffset).toInt()
+        if (relPos < 0 || relPos >= spanBytes.size) {
+            throw IllegalStateException("Invalid local header offset $relPos within decrypted span of ${spanBytes.size} bytes")
+        }
+
+        var currentChunkEnd = chunkEnd
+        while (relPos + 30 > spanBytes.size && currentChunkEnd < lastChunkIndex) {
+            currentChunkEnd++
+            val chunkVaultStart = V3_HEADER_SIZE + currentChunkEnd.toLong() * totalFramedChunkSize
+            val isLast = (currentChunkEnd == lastChunkIndex) || (chunkVaultStart + totalFramedChunkSize >= manifestOffset)
+            val chunkBytes = readChunkBytesFn(currentChunkEnd)
+            val plain = decryptChunk(secretKey, chunkBytes, baseIV, currentChunkEnd, isLast, header.salt)
+            val merged = ByteArray(spanBytes.size + plain.size)
+            System.arraycopy(spanBytes, 0, merged, 0, spanBytes.size)
+            System.arraycopy(plain, 0, merged, spanBytes.size, plain.size)
+            spanBytes = merged
+        }
+
+        var payloadStart = relPos
+        var payloadLength = entry.compressedSize.toInt()
+        var isDeflated = entry.isCompressed
+
+        if (relPos + 30 <= spanBytes.size) {
+            val view = ByteBuffer.wrap(spanBytes).order(ByteOrder.LITTLE_ENDIAN)
+            val sig = view.getInt(relPos)
+            if (sig == 0x04034b50) { // PK\x03\x04
+                val method = view.getShort(relPos + 8).toInt() and 0xFFFF
+                isDeflated = (method == 8) || (method != 0 && entry.isCompressed)
+                val nameLen = view.getShort(relPos + 26).toInt() and 0xFFFF
+                val extraLen = view.getShort(relPos + 28).toInt() and 0xFFFF
+                payloadStart = relPos + 30 + nameLen + extraLen
+                val headerCompSize = view.getInt(relPos + 18).toLong() and 0xFFFFFFFFL
+                if (payloadLength <= 0 && headerCompSize > 0) {
+                    payloadLength = headerCompSize.toInt()
+                } else if (payloadLength <= 0 && !isDeflated && entry.sizeBytes > 0) {
+                    payloadLength = entry.sizeBytes.toInt()
                 }
             }
         }
 
-        onProgress(100f, "Extraction complete")
-        return@withContext entries
+        while (payloadStart + payloadLength > spanBytes.size && currentChunkEnd < lastChunkIndex) {
+            currentChunkEnd++
+            val chunkVaultStart = V3_HEADER_SIZE + currentChunkEnd.toLong() * totalFramedChunkSize
+            val isLast = (currentChunkEnd == lastChunkIndex) || (chunkVaultStart + totalFramedChunkSize >= manifestOffset)
+            val chunkBytes = readChunkBytesFn(currentChunkEnd)
+            val plain = decryptChunk(secretKey, chunkBytes, baseIV, currentChunkEnd, isLast, header.salt)
+            val merged = ByteArray(spanBytes.size + plain.size)
+            System.arraycopy(spanBytes, 0, merged, 0, spanBytes.size)
+            System.arraycopy(plain, 0, merged, spanBytes.size, plain.size)
+            spanBytes = merged
+        }
+
+        val rawPayload = if (payloadLength <= 0) {
+            ByteArray(0)
+        } else {
+            val payloadEnd = Math.min(spanBytes.size, payloadStart + payloadLength)
+            if (payloadStart >= payloadEnd) ByteArray(0) else spanBytes.copyOfRange(payloadStart, payloadEnd)
+        }
+
+        val uncompressedBytes = if (isDeflated && rawPayload.isNotEmpty()) {
+            val inflater = Inflater(true)
+            try {
+                inflater.setInput(rawPayload)
+                val bos = ByteArrayOutputStream(entry.sizeBytes.toInt().coerceAtLeast(1024))
+                val tempBuf = ByteArray(BUFFER_SIZE)
+                while (!inflater.finished()) {
+                    val count = inflater.inflate(tempBuf)
+                    if (count == 0 && inflater.needsInput()) break
+                    bos.write(tempBuf, 0, count)
+                }
+                bos.toByteArray()
+            } finally {
+                inflater.end()
+            }
+        } else {
+            rawPayload
+        }
+
+        outputFile.parentFile?.mkdirs()
+        outputFile.writeBytes(uncompressedBytes)
+
+        val ext = outputFile.extension.lowercase(Locale.ROOT)
+        val mimeType = resolveMimeType(ext)
+        var textPreview: String? = null
+        if (mimeType.startsWith("text/") && outputFile.length() < 256 * 1024) {
+            textPreview = try {
+                outputFile.readText(Charsets.UTF_8).take(2000)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        val finalUri = try {
+            Uri.fromFile(outputFile)
+        } catch (_: Throwable) {
+            null
+        }
+
+        return entry.copy(
+            sizeBytes = outputFile.length(),
+            localFileUri = finalUri,
+            textContentPreview = textPreview
+        )
     }
 
     class V3DecryptedInputStream(
