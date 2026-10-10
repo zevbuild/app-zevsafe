@@ -230,24 +230,10 @@ class CryptoUnitTest {
 
     private fun createDummyUri(): android.net.Uri {
         return try {
-            val unsafeClass = Class.forName("sun.misc.Unsafe")
-            val theUnsafeField = unsafeClass.getDeclaredField("theUnsafe")
-            theUnsafeField.isAccessible = true
-            val unsafe = theUnsafeField.get(null)
-            val allocateMethod = unsafeClass.getMethod("allocateInstance", Class::class.java)
-            allocateMethod.invoke(unsafe, Class.forName("android.net.Uri")) as android.net.Uri
+            val clazz = Class.forName("android.net.TestUri")
+            clazz.getDeclaredConstructor().newInstance() as android.net.Uri
         } catch (_: Throwable) {
-            try {
-                android.net.Uri.parse("content://dummy")
-            } catch (_: Throwable) {
-                try {
-                    android.net.Uri.EMPTY
-                } catch (_: Throwable) {
-                    val constructor = Class.forName("android.net.Uri\$StringUri").declaredConstructors.first()
-                    constructor.isAccessible = true
-                    constructor.newInstance("content://dummy") as android.net.Uri
-                }
-            }
+            android.net.TestUri()
         }
     }
 
@@ -1535,7 +1521,7 @@ class CryptoUnitTest {
                 zipOut.closeEntry()
 
                 if (!file.isStored) {
-                    measuredCompressedSize = if (zipEntry.compressedSize > 0) zipEntry.compressedSize else (currentZipOffset - entryOffset)
+                    measuredCompressedSize = if (file.content.isEmpty()) 0L else (if (zipEntry.compressedSize > 0) zipEntry.compressedSize else (currentZipOffset - entryOffset))
                 }
 
                 val (chunkStart, chunkEnd) = computeChunkRange(entryOffset, file.name.length, measuredCompressedSize, chunkSize)
