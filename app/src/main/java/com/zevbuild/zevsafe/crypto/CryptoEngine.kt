@@ -344,6 +344,216 @@ object CryptoEngine {
         return String(decrypted, Charsets.UTF_8)
     }
 
+    private fun escapeJson(str: String): String {
+        val sb = StringBuilder()
+        for (c in str) {
+            when (c) {
+                '\\' -> sb.append("\\\\")
+                '"' -> sb.append("\\\"")
+                '\b' -> sb.append("\\b")
+                '\u000C' -> sb.append("\\f")
+                '\n' -> sb.append("\\n")
+                '\r' -> sb.append("\\r")
+                '\t' -> sb.append("\\t")
+                else -> {
+                    if (c.code < 32) {
+                        sb.append(String.format(Locale.US, "\\u%04x", c.code))
+                    } else {
+                        sb.append(c)
+                    }
+                }
+            }
+        }
+        return sb.toString()
+    }
+
+    fun parseManifestJson(jsonString: String): VaultCatalog {
+        try {
+            val root = JSONObject(jsonString)
+            val filesJson = root.optJSONArray("files")
+            if (filesJson != null && filesJson.length() > 0) {
+                val entries = mutableListOf<DecryptedFileEntry>()
+                for (i in 0 until filesJson.length()) {
+                    val item = filesJson.optJSONObject(i) ?: continue
+                    val path = item.optString("path", item.optString("name", "unnamed"))
+                    if (path.isEmpty() || path == "null") continue
+                    val size = item.optLong("size", item.optLong("uncompressedSize", 0L))
+                    val compSize = item.optLong("compressedSize", size)
+                    val lho = item.optLong("localHeaderOffset", item.optLong("offset", 0L))
+                    val isComp = item.optBoolean("compressed", false)
+                    val crc = item.optLong("crc32", 0L)
+                    val chunkStart = item.optInt("chunkStart", (lho / DEFAULT_CHUNK_SIZE).toInt())
+                    val chunkEnd = item.optInt("chunkEnd", ((lho + 30 + path.length + compSize) / DEFAULT_CHUNK_SIZE).toInt())
+
+                    val name = path.substringAfterLast('/')
+                    val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+                    val mimeType = resolveMimeType(ext)
+
+                    entries.add(
+                        DecryptedFileEntry(
+                            path = path,
+                            name = name,
+                            sizeBytes = size,
+                            isDirectory = path.endsWith("/"),
+                            mimeType = mimeType,
+                            localHeaderOffset = lho,
+                            compressedSize = compSize,
+                            isCompressed = isComp,
+                            crc32 = crc,
+                            chunkStart = chunkStart,
+                            chunkEnd = chunkEnd
+                        )
+                    )
+                }
+
+                if (entries.isNotEmpty()) {
+                    return VaultCatalog(
+                        version = root.optInt("version", 3),
+                        totalSize = root.optLong("totalSize", entries.sumOf { it.sizeBytes }),
+                        fileCount = root.optInt("fileCount", entries.size),
+                        files = entries
+                    )
+                }
+            }
+        } catch (_: Throwable) {
+            // Fallback for JVM unit tests where android.jar has mock/stub JSONObject
+        }
+
+        return parseManifestJsonFallback(jsonString)
+    }
+
+    internal fun splitJsonObjects(arrayStr: String): List<String> {
+        val results = mutableListOf<String>()
+        var depth = 0
+        var inString = false
+        var escape = false
+        var startIdx = -1
+
+        for (i in arrayStr.indices) {
+            val c = arrayStr[i]
+            if (escape) {
+                escape = false
+                continue
+            }
+            if (c == '\\') {
+                if (inString) escape = true
+                continue
+            }
+            if (c == '"') {
+                inString = !inString
+                continue
+            }
+            if (!inString) {
+                if (c == '{') {
+                    if (depth == 0) startIdx = i
+                    depth++
+                } else if (c == '}') {
+                    depth--
+                    if (depth == 0 && startIdx != -1) {
+                        results.add(arrayStr.substring(startIdx + 1, i))
+                        startIdx = -1
+                    }
+                }
+            }
+        }
+        return results
+    }
+
+    internal fun parseManifestJsonFallback(jsonString: String): VaultCatalog {
+        val totalSizeMatch = Regex(""""totalSize"\s*:\s*(\d+)""").find(jsonString)
+        val totalSize = totalSizeMatch?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+        val versionMatch = Regex(""""version"\s*:\s*(\d+)""").find(jsonString)
+        val version = versionMatch?.groupValues?.get(1)?.toIntOrNull() ?: 3
+
+        val entries = mutableListOf<DecryptedFileEntry>()
+        val filesArrayMatch = Regex(""""files"\s*:\s*\[(.*)\]""", RegexOption.DOT_MATCHES_ALL).find(jsonString)
+        val filesContent = filesArrayMatch?.groupValues?.get(1) ?: ""
+
+        val rawObjects = splitJsonObjects(filesContent)
+        for (block in rawObjects) {
+            fun getString(key: String): String {
+                val prefix = "\"$key\""
+                val idx = block.indexOf(prefix)
+                if (idx == -1) return ""
+                val colonIdx = block.indexOf(':', idx + prefix.length)
+                if (colonIdx == -1) return ""
+                val quoteStart = block.indexOf('"', colonIdx + 1)
+                if (quoteStart == -1) return ""
+                val sb = StringBuilder()
+                var escape = false
+                for (i in (quoteStart + 1) until block.length) {
+                    val c = block[i]
+                    if (escape) {
+                        when (c) {
+                            'n' -> sb.append('\n')
+                            'r' -> sb.append('\r')
+                            't' -> sb.append('\t')
+                            'b' -> sb.append('\b')
+                            'f' -> sb.append('\u000C')
+                            '"' -> sb.append('"')
+                            '\\' -> sb.append('\\')
+                            else -> sb.append(c)
+                        }
+                        escape = false
+                    } else if (c == '\\') {
+                        escape = true
+                    } else if (c == '"') {
+                        break
+                    } else {
+                        sb.append(c)
+                    }
+                }
+                return sb.toString()
+            }
+            fun getLong(key: String, def: Long = 0L): Long {
+                val r = Regex(""""$key"\s*:\s*(-?\d+)""").find(block)
+                return r?.groupValues?.get(1)?.toLongOrNull() ?: def
+            }
+            fun getInt(key: String, def: Int = 0): Int {
+                val r = Regex(""""$key"\s*:\s*(-?\d+)""").find(block)
+                return r?.groupValues?.get(1)?.toIntOrNull() ?: def
+            }
+            fun getBool(key: String, def: Boolean = false): Boolean {
+                val r = Regex(""""$key"\s*:\s*(true|false)""").find(block)
+                return r?.groupValues?.get(1)?.toBooleanStrictOrNull() ?: def
+            }
+
+            val path = getString("path").ifEmpty { getString("name").ifEmpty { "unnamed" } }
+            val name = path.substringAfterLast('/')
+            val size = getLong("size", getLong("uncompressedSize", 0L))
+            val compSize = getLong("compressedSize", size)
+            val lho = getLong("localHeaderOffset", getLong("offset", 0L))
+            val isComp = getBool("compressed", false)
+            val crc = getLong("crc32", 0L)
+            val chunkStart = getInt("chunkStart", (lho / DEFAULT_CHUNK_SIZE).toInt())
+            val chunkEnd = getInt("chunkEnd", ((lho + 30 + path.length + compSize) / DEFAULT_CHUNK_SIZE).toInt())
+            val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+
+            entries.add(
+                DecryptedFileEntry(
+                    path = path,
+                    name = name,
+                    sizeBytes = size,
+                    isDirectory = path.endsWith("/"),
+                    mimeType = resolveMimeType(ext),
+                    localHeaderOffset = lho,
+                    compressedSize = compSize,
+                    isCompressed = isComp,
+                    crc32 = crc,
+                    chunkStart = chunkStart,
+                    chunkEnd = chunkEnd
+                )
+            )
+        }
+
+        return VaultCatalog(
+            version = version,
+            totalSize = if (totalSize > 0L) totalSize else entries.sumOf { it.sizeBytes },
+            fileCount = entries.size,
+            files = entries
+        )
+    }
+
     suspend fun readV3VaultManifest(
         inStream: InputStream,
         password: CharArray,
@@ -397,48 +607,7 @@ object CryptoEngine {
         }
 
         val jsonString = decryptManifestEnvelope(fullEnvelope, secretKey)
-        val root = JSONObject(jsonString)
-        val filesJson = root.getJSONArray("files")
-        val entries = mutableListOf<DecryptedFileEntry>()
-
-        for (i in 0 until filesJson.length()) {
-            val item = filesJson.getJSONObject(i)
-            val path = item.optString("path", item.optString("name", "unnamed"))
-            val size = item.optLong("size", item.optLong("uncompressedSize", 0L))
-            val compSize = item.optLong("compressedSize", size)
-            val lho = item.optLong("localHeaderOffset", item.optLong("offset", 0L))
-            val isComp = item.optBoolean("compressed", false)
-            val crc = item.optLong("crc32", 0L)
-            val chunkStart = item.optInt("chunkStart", (lho / DEFAULT_CHUNK_SIZE).toInt())
-            val chunkEnd = item.optInt("chunkEnd", ((lho + 30 + path.length + compSize) / DEFAULT_CHUNK_SIZE).toInt())
-
-            val name = path.substringAfterLast('/')
-            val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
-            val mimeType = resolveMimeType(ext)
-
-            entries.add(
-                DecryptedFileEntry(
-                    path = path,
-                    name = name,
-                    sizeBytes = size,
-                    isDirectory = path.endsWith("/"),
-                    mimeType = mimeType,
-                    localHeaderOffset = lho,
-                    compressedSize = compSize,
-                    isCompressed = isComp,
-                    crc32 = crc,
-                    chunkStart = chunkStart,
-                    chunkEnd = chunkEnd
-                )
-            )
-        }
-
-        return@withContext VaultCatalog(
-            version = 3,
-            totalSize = root.optLong("totalSize", 0L),
-            fileCount = entries.size,
-            files = entries
-        )
+        return@withContext parseManifestJson(jsonString)
     }
 
     suspend fun readV3VaultManifest(
@@ -473,7 +642,7 @@ object CryptoEngine {
         var processedSourceBytes = 0L
         var totalMeasuredBytes = 0L
 
-        val catalogEntries = JSONArray()
+        val rawCatalogEntries = mutableListOf<String>()
         var currentZipOffset = 0L
 
         RandomAccessFile(outputVaultFile, "rw").use { raf ->
@@ -612,19 +781,8 @@ object CryptoEngine {
                     val chunkStart = (entryOffset / DEFAULT_CHUNK_SIZE).toInt()
                     val chunkEnd = ((entryOffset + 30 + item.relativePath.length + finalCompSize) / DEFAULT_CHUNK_SIZE).toInt()
 
-                    val entryJson = JSONObject().apply {
-                        put("path", item.relativePath)
-                        put("name", item.name)
-                        put("size", finalSize)
-                        put("uncompressedSize", finalSize)
-                        put("compressedSize", finalCompSize)
-                        put("localHeaderOffset", entryOffset)
-                        put("compressed", !isPrecompressed)
-                        put("crc32", crc.value)
-                        put("chunkStart", chunkStart)
-                        put("chunkEnd", chunkEnd)
-                    }
-                    catalogEntries.put(entryJson)
+                    val entryJsonStr = """{"path":"${escapeJson(item.relativePath)}","name":"${escapeJson(item.name)}","size":$finalSize,"uncompressedSize":$finalSize,"compressedSize":$finalCompSize,"localHeaderOffset":$entryOffset,"compressed":${!isPrecompressed},"crc32":${crc.value},"chunkStart":$chunkStart,"chunkEnd":$chunkEnd}"""
+                    rawCatalogEntries.add(entryJsonStr)
                 }
             }
 
@@ -635,13 +793,9 @@ object CryptoEngine {
             val manifestOffset = raf.filePointer
 
             // Write Manifest Envelope
-            val catalogRoot = JSONObject().apply {
-                put("version", 3)
-                put("totalSize", if (totalMeasuredBytes > 0L) totalMeasuredBytes else totalSourceBytes)
-                put("fileCount", catalogEntries.length())
-                put("files", catalogEntries)
-            }
-            val manifestEnvelope = encryptManifestEnvelope(catalogRoot.toString(), secretKey, salt)
+            val computedTotal = if (totalMeasuredBytes > 0L) totalMeasuredBytes else totalSourceBytes
+            val catalogJson = """{"version":3,"totalSize":$computedTotal,"fileCount":${rawCatalogEntries.size},"files":[${rawCatalogEntries.joinToString(",")}]}"""
+            val manifestEnvelope = encryptManifestEnvelope(catalogJson, secretKey, salt)
             raf.write(manifestEnvelope)
 
             // Seek back to offset 49 and update manifestOffset (8 bytes uint64 BE)
