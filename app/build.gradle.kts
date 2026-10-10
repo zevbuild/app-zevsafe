@@ -12,8 +12,8 @@ android {
         applicationId = "com.zevbuild.zevsafe"
         minSdk = 26
         targetSdk = 35
-        versionCode = 32
-        versionName = "6.4.1"
+        versionCode = 33
+        versionName = "6.4.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

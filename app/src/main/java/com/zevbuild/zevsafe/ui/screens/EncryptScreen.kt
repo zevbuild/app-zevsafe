@@ -424,12 +424,50 @@ fun EncryptScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Master Password Input
-            Text(
-                text = "Master Password",
-                style = MaterialTheme.typography.labelLarge,
-                color = TextPrimary
-            )
+            // Master Password Input with One-Tap Generator
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Master Password",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = TextPrimary
+                )
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(PurplePrimary.copy(alpha = 0.15f))
+                        .border(1.dp, PurplePrimary.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                        .clickable {
+                            val chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*"
+                            val random = java.security.SecureRandom()
+                            val generated = (1..16).map { chars[random.nextInt(chars.length)] }.joinToString("")
+                            viewModel.setEncryptPassword(generated)
+                            viewModel.setEncryptConfirmPassword(generated)
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                            clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ZevSafe Generated Key", generated))
+                            android.widget.Toast.makeText(context, "Strong key generated & copied to clipboard!", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Key,
+                        contentDescription = "Generate Key",
+                        tint = PurpleLight,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Generate Strong Key",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = PurpleLight
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(6.dp))
             OutlinedTextField(
                 value = password,

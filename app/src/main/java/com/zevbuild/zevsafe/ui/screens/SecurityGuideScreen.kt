@@ -2,6 +2,7 @@ package com.zevbuild.zevsafe.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
@@ -37,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -136,6 +139,76 @@ fun SecurityGuideScreen(
                     headerBytes = "[ Salt (16B) | IV (12B) | Ciphertext + GCM Tag (16B) ]",
                     notes = "PBKDF2-HMAC-SHA256 with 100,000 iterations."
                 )
+            }
+        }
+
+        // Official Web Portal & Cross-Platform Ecosystem Card (zevsafe.pages.dev)
+        CyberCard(
+            title = "Official Web Portal & Cross-Platform",
+            subtitle = "Bit-identical ZV3\\0 compatibility with zevsafe.pages.dev",
+            tag = "ECOSYSTEM",
+            accent = CardAccent.TEAL
+        ) {
+            val context = LocalContext.current
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "ZevSafe provides an official in-browser zero-knowledge web application at zevsafe.pages.dev. Any .zev vault created in this Android app can be dragged and dropped into the web portal to inspect, decrypt, or stream without installing any software.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                    lineHeight = 20.sp
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceVariantDark)
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Web Portal: zevsafe.pages.dev",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TealLight
+                        )
+                        Text(
+                            text = "100% Client-side Web Crypto API (PWA)",
+                            fontSize = 11.sp,
+                            color = TextMuted
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(TealPrimary.copy(alpha = 0.2f))
+                            .border(1.dp, TealPrimary, RoundedCornerShape(8.dp))
+                            .clickable {
+                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ZevSafe Web Portal", "https://zevsafe.pages.dev"))
+                                android.widget.Toast.makeText(context, "URL copied: https://zevsafe.pages.dev", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Copy Link",
+                            tint = TealLight,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Copy Link",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TealLight
+                        )
+                    }
+                }
             }
         }
 

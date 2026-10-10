@@ -2,7 +2,7 @@
 
 > **System Memory, Technical Reference & Architectural Guidelines for `app-zevsafe`**  
 > **Package Identity:** `com.zevbuild.zevsafe`  
-> **Release Version:** `v6.4.1` (Build `32`) · **Target SDK:** 35 · **Min SDK:** 26
+> **Release Version:** `v6.4.2` (Build `33`) · **Target SDK:** 35 · **Min SDK:** 26
 
 > **🤖 MANDATORY AI AGENT RULE:**  
 > Whenever **ANY** AI agent (Antigravity, Gemini, Cursor, Windsurf, Claude, Copilot) modifies, adds, refactors, or fixes any code or configuration in this repository, you **MUST AUTOMATICALLY UPDATE `PROJECT_MEMORY.md` AND THE RELEVANT FILES IN `PROJECT-MEMORY/`** (alongside `CHANGELOG.md` and `README.md`) before finishing your task. This ensures any future AI agent can immediately understand the exact current state of the project.
@@ -60,6 +60,6 @@ Comprehensive technical documentation is maintained under the [`PROJECT-MEMORY/`
 | **Test Verification** | 40 unit tests across 4 tiers in `CryptoUnitTest.kt` (R1 stream-measured manifest sizes & zero-reported size items, R2 targeted single-file extraction, backward compatibility, static security checks) |
 | **Manifest Sizing** | Stream-measured uncompressed & compressed sizes and IEEE 802.3 CRC-32 for all STORED & DEFLATED files; measured root `totalSize` sum |
 | **Targeted Extraction** | Direct 4 MB chunk seek via `FileChannel` (`extractSingleFileFromV3Vault`), decrypting only `chunkStart..chunkEnd` (<100ms, <15 MB RAM) with ZIP local header parsing, `Inflater(true)` decompression, and session directory caching fallback in `VaultViewModel` |
-| **UI/UX Overhaul** | Cyber-dark theme, glowing animated dropzones, expandable file list preview, real-time MB/s throughput telemetry in `StageProgressTracker` & `VaultViewModel`, interactive Vault Format Inspector badges (`v3 STREAM AEAD`, `4 MB Chunks`, `PBKDF2 600k`, `2FA Keyfile`), instant catalog inspection button (`loadInstantCatalog`), persistent in-screen action cards with wired cross-screen navigation, leak-free banner state machine, MIME color-coding, extension badges, and floating "Export All" FAB |
+| **UI/UX Overhaul** | Cyber-dark theme, glowing animated dropzones, Cryptographic Trust Strip (`AES-256-GCM`, `600k PBKDF2`, `Air-Gapped`), One-Tap Strong Key Generator in `EncryptScreen`, Category Filter Chips (`All`, `Videos`, `Audio`, `Images`, `Docs`, `Archives`) with dynamic counts & Multi-Mode Sorting (`Name A-Z/Z-A`, `Size`) in `VaultBrowserScreen`, official `zevsafe.pages.dev` ecosystem card in `SecurityGuideScreen`, real-time MB/s throughput telemetry in `StageProgressTracker` & `VaultViewModel`, interactive Vault Format Inspector badges, instant catalog inspection button (`loadInstantCatalog`), and floating "Export All" FAB |
 
 

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -118,6 +120,33 @@ private fun isDocumentFile(entry: DecryptedFileEntry): Boolean {
             nameLower.endsWith(".xml") || nameLower.endsWith(".csv") || nameLower.endsWith(".md")
 }
 
+enum class FileCategory(val label: String, val color: Color) {
+    ALL("All", Color(0xFF2DD4BF)),
+    VIDEOS("Videos", Color(0xFFF43F5E)),
+    AUDIO("Audio", Color(0xFFF59E0B)),
+    IMAGES("Images", Color(0xFF2DD4BF)),
+    DOCS("Docs", Color(0xFF38BDF8)),
+    ARCHIVES("Archives", Color(0xFFA78BFA))
+}
+
+enum class FileSortOrder(val label: String) {
+    NAME_ASC("Name A-Z"),
+    NAME_DESC("Name Z-A"),
+    SIZE_DESC("Largest"),
+    SIZE_ASC("Smallest")
+}
+
+private fun matchesCategory(entry: DecryptedFileEntry, category: FileCategory): Boolean {
+    return when (category) {
+        FileCategory.ALL -> true
+        FileCategory.VIDEOS -> entry.mimeType.startsWith("video/")
+        FileCategory.AUDIO -> entry.mimeType.startsWith("audio/")
+        FileCategory.IMAGES -> entry.mimeType.startsWith("image/")
+        FileCategory.DOCS -> isDocumentFile(entry)
+        FileCategory.ARCHIVES -> isArchiveFile(entry)
+    }
+}
+
 @Composable
 fun VaultBrowserScreen(
     viewModel: VaultViewModel,
@@ -127,6 +156,8 @@ fun VaultBrowserScreen(
     val context = LocalContext.current
     val decryptionResult by viewModel.decryptionResult.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf(FileCategory.ALL) }
+    var sortOrder by remember { mutableStateOf(FileSortOrder.NAME_ASC) }
     var selectedPreviewFile by remember { mutableStateOf<DecryptedFileEntry?>(null) }
     var selectedAudioFile by remember { mutableStateOf<DecryptedFileEntry?>(null) }
 
@@ -207,8 +238,16 @@ fun VaultBrowserScreen(
                 }
             } else {
                 val result = decryptionResult!!
-                val filteredFiles = result.files.filter {
+                val categoryFiles = result.files.filter { matchesCategory(it, selectedCategory) }
+                val filteredFiles = categoryFiles.filter {
                     it.path.contains(searchQuery, ignoreCase = true) || it.name.contains(searchQuery, ignoreCase = true)
+                }.let { list ->
+                    when (sortOrder) {
+                        FileSortOrder.NAME_ASC -> list.sortedBy { it.name.lowercase() }
+                        FileSortOrder.NAME_DESC -> list.sortedByDescending { it.name.lowercase() }
+                        FileSortOrder.SIZE_DESC -> list.sortedByDescending { it.sizeBytes }
+                        FileSortOrder.SIZE_ASC -> list.sortedBy { it.sizeBytes }
+                    }
                 }
 
                 CyberCard(
@@ -238,7 +277,83 @@ fun VaultBrowserScreen(
                         singleLine = true
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Category Filter Chips & Sort Controls (aligned with zevsafe web explorer)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LazyRow(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            contentPadding = PaddingValues(end = 8.dp)
+                        ) {
+                            items(FileCategory.values()) { category ->
+                                val isSelected = selectedCategory == category
+                                val count = result.files.count { matchesCategory(it, category) }
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) category.color.copy(alpha = 0.2f) else SurfaceVariantDark)
+                                        .border(
+                                            1.dp,
+                                            if (isSelected) category.color else CardBorder,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { selectedCategory = category }
+                                        .padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = category.label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) category.color else TextSecondary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "$count",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isSelected) category.color.copy(alpha = 0.85f) else TextMuted
+                                    )
+                                }
+                            }
+                        }
+
+                        // Sort Order Toggle Button
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SurfaceVariantDark)
+                                .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
+                                .clickable {
+                                    val values = FileSortOrder.values()
+                                    val nextIdx = (sortOrder.ordinal + 1) % values.size
+                                    sortOrder = values[nextIdx]
+                                }
+                                .padding(horizontal = 8.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Sort,
+                                contentDescription = "Sort Files",
+                                tint = TealLight,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = sortOrder.label,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // File List with bottom padding for Floating Export All FAB
                     LazyColumn(

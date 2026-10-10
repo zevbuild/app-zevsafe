@@ -20,8 +20,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AirplanemodeActive
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MenuBook
@@ -129,6 +130,11 @@ fun HomeScreen(
                     onOpenGuide = { currentTab = NavigationTab.GUIDE }
                 )
 
+                // Cryptographic Trust Strip (aligned with zevsafe.pages.dev)
+                CryptographicTrustStrip()
+
+                Spacer(modifier = Modifier.height(4.dp))
+
                 // Main Content Body with smooth Crossfade
                 Box(modifier = Modifier.fillMaxSize()) {
                     Crossfade(targetState = currentTab, label = "tab_crossfade") { tab ->
@@ -231,3 +237,56 @@ private fun TopBrandHeader(
         }
     }
 }
+
+@Composable
+private fun CryptographicTrustStrip(
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceDark.copy(alpha = 0.6f))
+            .border(1.dp, CardBorder.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TrustPill(icon = Icons.Default.Shield, label = "AES-256-GCM")
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(12.dp)
+                .background(CardBorder)
+        )
+        TrustPill(icon = Icons.Default.Key, label = "600k PBKDF2")
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(12.dp)
+                .background(CardBorder)
+        )
+        TrustPill(icon = Icons.Default.AirplanemodeActive, label = "Air-Gapped")
+    }
+}
+
+@Composable
+private fun TrustPill(icon: ImageVector, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = TealLight,
+            modifier = Modifier.size(13.dp)
+        )
+        Spacer(modifier = Modifier.width(5.dp))
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextSecondary
+        )
+    }
+}
+

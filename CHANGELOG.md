@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 6.4.2 — October 10, 2026
+- `UI` (`HomeScreen.kt`): Added frosted Cryptographic Trust Strip directly beneath the top brand header (`AES-256-GCM`, `600k PBKDF2`, `Air-Gapped`), matching the visual trust architecture of the official `zevsafe.pages.dev` web portal.
+- `New` (`EncryptScreen.kt`): Added One-Tap Strong Key Generator button generating 16-character high-entropy cryptographic master passwords using `SecureRandom`, auto-populating confirmation fields, and copying to the Android system clipboard.
+- `New` (`VaultBrowserScreen.kt`): Implemented Category Filter Chips (`All`, `Videos`, `Audio`, `Images`, `Docs`, `Archives`) with dynamic item count badges and MIME color-coding, mirroring the `zevsafe` web explorer features.
+- `New` (`VaultBrowserScreen.kt`): Added multi-mode Sorting Control allowing instant sorting across active vaults by Name (A-Z, Z-A) and Size (Largest, Smallest).
+- `Docs` (`SecurityGuideScreen.kt`): Added dedicated Cross-Platform Ecosystem Card detailing `zevsafe.pages.dev` bit-identical interoperability with one-tap portal link copy.
+- `Release`: Tagged official GitHub release `v6.4.2` (build `33`).
+
 ## Version 6.4.1 — October 10, 2026
 - `Fix` (`CryptoEngine.kt`): Streamlined manifest JSON serialization and added resilient parser fallback (`splitJsonObjects`), eliminating headless JVM stub null-pointer issues on CI test runners while guaranteeing fast native deserialization.
 - `Tests` (`TestUri.java`, `CryptoUnitTest.kt`): Added concrete `TestUri` subclass in package `android.net` implementing all abstract methods to provide non-null URI test mocks during headless Gradle test execution.
