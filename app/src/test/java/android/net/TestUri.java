@@ -39,7 +39,17 @@ public class TestUri extends Uri {
     }
 
     @Override
+    public String getEncodedAuthority() {
+        return "test";
+    }
+
+    @Override
     public String getUserInfo() {
+        return null;
+    }
+
+    @Override
+    public String getEncodedUserInfo() {
         return null;
     }
 
