@@ -230,27 +230,23 @@ class CryptoUnitTest {
 
     private fun createDummyUri(): android.net.Uri {
         return try {
-            val unsafeField = sun.misc.Unsafe::class.java.getDeclaredField("theUnsafe")
-            unsafeField.isAccessible = true
-            val unsafe = unsafeField.get(null) as sun.misc.Unsafe
-            unsafe.allocateInstance(Class.forName("android.net.Uri")) as android.net.Uri
+            val unsafeClass = Class.forName("sun.misc.Unsafe")
+            val theUnsafeField = unsafeClass.getDeclaredField("theUnsafe")
+            theUnsafeField.isAccessible = true
+            val unsafe = theUnsafeField.get(null)
+            val allocateMethod = unsafeClass.getMethod("allocateInstance", Class::class.java)
+            allocateMethod.invoke(unsafe, Class.forName("android.net.Uri")) as android.net.Uri
         } catch (_: Throwable) {
-            object : android.net.Uri() {
-                override fun isHierarchical() = false
-                override fun isRelative() = false
-                override fun getScheme() = "test"
-                override fun getSchemeSpecificPart() = "test"
-                override fun getAuthority() = "test"
-                override fun getUserInfo() = null
-                override fun getHost() = "test"
-                override fun getPort() = -1
-                override fun getPath() = ""
-                override fun getQuery() = null
-                override fun getFragment() = null
-                override fun getPathSegments() = emptyList<String>()
-                override fun getLastPathSegment() = ""
-                override fun buildUpon() = null
-                override fun toString() = "test://"
+            try {
+                android.net.Uri.parse("content://dummy")
+            } catch (_: Throwable) {
+                try {
+                    android.net.Uri.EMPTY
+                } catch (_: Throwable) {
+                    val constructor = Class.forName("android.net.Uri\$StringUri").declaredConstructors.first()
+                    constructor.isAccessible = true
+                    constructor.newInstance("content://dummy") as android.net.Uri
+                }
             }
         }
     }
