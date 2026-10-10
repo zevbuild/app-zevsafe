@@ -1,6 +1,7 @@
 # Changelog
 
 ## Version 6.4.0 — October 5, 2026
+- `Fix` (`CryptoEngine.kt`): Added missing `java.io.ByteArrayInputStream` import for `parseVaultHeader` in `extractSingleFileFromV3Vault`, resolving GitHub Actions Android build failure during Kotlin compilation.
 - `Fix` (`CryptoEngine.kt`): Resolved manifest size bug where items with zero-reported initial size (`SelectedItem.sizeBytes <= 0L`) wrote `"size": 0`, `"compressedSize": 0`, and `"crc32": 0` into the encrypted manifest JSON envelope.
 - `Fix` (`CryptoEngine.kt`): Stream-measured uncompressed and compressed byte lengths and calculated IEEE 802.3 CRC-32 for both STORED (precompressed) and DEFLATED files during streaming. Correctly set root manifest `totalSize` to the sum of measured bytes, preserving accurate `0 B` values for genuinely empty files.
 - `New` (`CryptoEngine.kt`): Added stream-based overloads for `encryptItemsToV3Vault`, `readV3VaultManifest`, and `decryptV3VaultStreamToDirectory` supporting direct `InputStream` operations in pure JVM unit tests without Android `Context` or framework stubs.
