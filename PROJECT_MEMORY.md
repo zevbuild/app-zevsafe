@@ -2,7 +2,7 @@
 
 > **System Memory, Technical Reference & Architectural Guidelines for `app-zevsafe`**  
 > **Package Identity:** `com.zevbuild.zevsafe`  
-> **Release Version:** `v6.4.0` (Build `31`) · **Target SDK:** 35 · **Min SDK:** 26
+> **Release Version:** `v6.4.1` (Build `32`) · **Target SDK:** 35 · **Min SDK:** 26
 
 > **🤖 MANDATORY AI AGENT RULE:**  
 > Whenever **ANY** AI agent (Antigravity, Gemini, Cursor, Windsurf, Claude, Copilot) modifies, adds, refactors, or fixes any code or configuration in this repository, you **MUST AUTOMATICALLY UPDATE `PROJECT_MEMORY.md` AND THE RELEVANT FILES IN `PROJECT-MEMORY/`** (alongside `CHANGELOG.md` and `README.md`) before finishing your task. This ensures any future AI agent can immediately understand the exact current state of the project.

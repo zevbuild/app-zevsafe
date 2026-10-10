@@ -3,7 +3,7 @@
 > **by [zevbuild](https://github.com/zevbuild) · Encrypt and decrypt entire folders directly in your browser or native Android app — no server, no uploads, 100% private.**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Cloudflare%20Pages-8b5cf6?style=for-the-badge&logo=cloudflare)](https://zevsafe.pages.dev)
-[![Android APK](https://img.shields.io/badge/Android%20APK-Download%20v6.4.0-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/zevbuild/app-zevsafe/releases/latest)
+[![Android APK](https://img.shields.io/badge/Android%20APK-Download%20v6.4.1-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/zevbuild/app-zevsafe/releases/latest)
 [![Build Android APK](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml/badge.svg)](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml)
 [![Project Memory](https://img.shields.io/badge/Project%20Memory-Knowledge%20Base-8b5cf6?style=for-the-badge&logo=gitbook&logoColor=white)](PROJECT_MEMORY.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-10b981?style=for-the-badge)](LICENSE)
@@ -12,7 +12,7 @@
 
 ---
 
-> 🟢 **Current stable release — v6.4.0 (`.zev` format):** native Android streaming edition.  
+> 🟢 **Current stable release — v6.4.1 (`.zev` format):** native Android streaming edition.  
 > PBKDF2-SHA512 · 600,000 iterations · 4 MB Chunked AES-256-GCM (`ZV3\0`) · Instant <100ms Vault Explorer · Embedded Media3 Cinema Player · Foreground Service · 100% Zero-Knowledge.  
 > 🧠 **Comprehensive System Architecture & Technical Specifications:** See [**`PROJECT_MEMORY.md`**](PROJECT_MEMORY.md) & [**`PROJECT-MEMORY/`**](PROJECT-MEMORY/).
 

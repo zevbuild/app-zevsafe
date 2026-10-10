@@ -1,5 +1,10 @@
 # Changelog
 
+## Version 6.4.1 — October 10, 2026
+- `Fix` (`CryptoEngine.kt`): Streamlined manifest JSON serialization and added resilient parser fallback (`splitJsonObjects`), eliminating headless JVM stub null-pointer issues on CI test runners while guaranteeing fast native deserialization.
+- `Tests` (`TestUri.java`, `CryptoUnitTest.kt`): Added concrete `TestUri` subclass in package `android.net` implementing all abstract methods to provide non-null URI test mocks during headless Gradle test execution.
+- `Release`: Tagged official GitHub release `v6.4.1` (build `32`) with attached release and debug APK artifacts (`ZevSafe-release.apk`, `ZevSafe-debug.apk`).
+
 ## Version 6.4.0 — October 5, 2026
 - `Fix` (`CryptoEngine.kt`): Added missing `java.io.ByteArrayInputStream` import for `parseVaultHeader` in `extractSingleFileFromV3Vault`, resolving GitHub Actions Android build failure during Kotlin compilation.
 - `Fix` (`CryptoEngine.kt`): Resolved manifest size bug where items with zero-reported initial size (`SelectedItem.sizeBytes <= 0L`) wrote `"size": 0`, `"compressedSize": 0`, and `"crc32": 0` into the encrypted manifest JSON envelope.
