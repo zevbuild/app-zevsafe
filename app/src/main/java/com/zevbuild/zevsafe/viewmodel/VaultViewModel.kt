@@ -403,7 +403,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         return raw.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifEmpty { "ZevSafe_Vault" }
     }
 
-    private fun saveFileToDownloads(context: Context, sourceFile: File, mimeType: String): Boolean {
+    fun saveFileToDownloads(context: Context, sourceFile: File, mimeType: String): Boolean {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val contentValues = ContentValues().apply {

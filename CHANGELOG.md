@@ -6,6 +6,7 @@
 - `New` (`CryptoEngine.kt`): Added `isTextOrCodeFile()` extension recognizer supporting 30+ code, config, and document file extensions (`.txt`, `.md`, `.json`, `.xml`, `.yaml`, `.yml`, `.csv`, `.log`, `.js`, `.ts`, `.html`, `.css`, `.py`, `.kt`, `.java`, `.c`, `.cpp`, `.h`, `.cs`, `.rs`, `.go`, `.sh`, `.bat`, `.ps1`, `.sql`, `.env`, `.toml`, `.ini`, `.gradle`, `.properties`, `.conf`).
 - `Perf` (`CryptoEngine.kt`, `VaultViewModel.kt`): Expanded text content preview extraction limit from 2,000 characters to 50,000 characters (up to 1 MB) for full document and source code inspection.
 - `UI` (`VaultBrowserScreen.kt`): Updated file row item subtitles and click actions: clicking any image file immediately opens the interactive Lightbox; clicking any recognized code/text document opens the Monospace Code Viewer; audio and video trigger their respective dedicated players; and other files display preview actions with `FileProvider` export.
+- `Fix` (`VaultViewModel.kt`): Changed `saveFileToDownloads` visibility from `private` to `public`, resolving Kotlin symbol compilation error in `VaultBrowserScreen.kt` and unblocking the CI/CD build pipeline.
 - `Security`: Zero unencrypted non-volatile disk persistence — all preview extraction is targeted and ephemeral in application cache.
 - `Release`: Tagged release `v6.4.3` (build `34`).
 
