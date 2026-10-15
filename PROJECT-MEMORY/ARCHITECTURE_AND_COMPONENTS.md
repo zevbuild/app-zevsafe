@@ -113,11 +113,24 @@
   * Interactive seekbar with `mm:ss` timestamps, repeat/looping toggle (`Player.REPEAT_MODE_ONE`), skip -/+10s controls, and 1.0x/1.5x/2.0x playback speed selector.
   * Smooth 250ms coroutine ticker for seek position; releases `ExoPlayer` on modal dismiss.
 
-* **Document Viewer & Open-With Fallback (`FileViewerHelper`):**
+* **In-Vault Interactive Image Lightbox (`RichImageViewerModal`):**
+  * Hosted in `ui/screens/VaultBrowserScreen.kt` as an edge-to-edge Compose lightbox dialog.
+  * On-the-fly targeted chunk extraction renders image bitmaps directly via `BitmapFactory.decodeFile` without writing plaintext unencrypted archives to disk.
+  * Touch gesture controls powered by `pointerInput`: two-finger pinch-to-zoom (0.5x to 5.0x) with translation drag-to-pan, and double-tap toggle to immediately zoom to 2.5x or reset to 1.0x.
+  * Interactive toolbar: Zoom In (`🔍+`), Zoom Out (`🔍-`), Reset 100% (`1:1`), and 90° Clockwise Rotation (`↻`).
+  * Header displays exact image dimensions (e.g. `1920 × 1080`), file size, direct system share sheet launcher, and one-tap save to public device `Downloads`.
+
+* **In-Vault Monospace Code & Text Viewer (`RichCodeTextViewerModal`):**
+  * Hosted in `ui/screens/VaultBrowserScreen.kt` for viewing documents and source code directly inside the vault without third-party app leaks.
+  * Recognizes over 30 extensions: `.txt`, `.md`, `.json`, `.xml`, `.yaml`, `.yml`, `.csv`, `.log`, `.js`, `.ts`, `.html`, `.css`, `.py`, `.kt`, `.java`, `.c`, `.cpp`, `.h`, `.cs`, `.rs`, `.go`, `.sh`, `.bat`, `.ps1`, `.sql`, `.env`, `.toml`, `.ini`, `.gradle`, `.properties`, `.conf`.
+  * Targeted extraction decodes up to 50,000 characters and 1 MB into memory on demand.
+  * Monospace typography with dedicated line number gutter, soft-wrap toggle (`Wrap: ON / OFF`), 1-tap clipboard copy button with Android Toast confirmation, outbound share sheet, and direct export to `Downloads`.
+
+* **Document Fallback & Open-With Intent (`FileViewerHelper`):**
   * Hosted in `ui/viewer/FileViewerHelper.kt`.
   * `openWithExternalApp(context, entry)`: Resolves extracted local file, creates content URI via `FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)`, and fires `Intent(Intent.ACTION_VIEW)` with `FLAG_GRANT_READ_URI_PERMISSION`.
   * Gracefully catches `ActivityNotFoundException` and delegates to `shareFile(context, entry)`.
-  * `FilePreviewModal` in `VaultBrowserScreen.kt` displays an active card for unsupported documents with `[ 🚀 Open in External App ]` and `[ 📤 Share File ]` buttons.
+  * `FilePreviewModal` in `VaultBrowserScreen.kt` displays an active card for unsupported binary formats with `[ 🚀 Open in External App ]` and `[ 📤 Share File ]` buttons.
 
 ---
 

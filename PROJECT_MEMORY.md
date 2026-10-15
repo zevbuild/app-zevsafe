@@ -2,7 +2,7 @@
 
 > **System Memory, Technical Reference & Architectural Guidelines for `app-zevsafe`**  
 > **Package Identity:** `com.zevbuild.zevsafe`  
-> **Release Version:** `v6.4.2` (Build `33`) · **Target SDK:** 35 · **Min SDK:** 26
+> **Release Version:** `v6.4.3` (Build `34`) · **Target SDK:** 35 · **Min SDK:** 26
 
 > **🤖 MANDATORY AI AGENT RULE:**  
 > Whenever **ANY** AI agent (Antigravity, Gemini, Cursor, Windsurf, Claude, Copilot) modifies, adds, refactors, or fixes any code or configuration in this repository, you **MUST AUTOMATICALLY UPDATE `PROJECT_MEMORY.md` AND THE RELEVANT FILES IN `PROJECT-MEMORY/`** (alongside `CHANGELOG.md` and `README.md`) before finishing your task. This ensures any future AI agent can immediately understand the exact current state of the project.
@@ -25,7 +25,7 @@ Comprehensive technical documentation is maintained under the [`PROJECT-MEMORY/`
    Complete binary specification: 57-byte container header, 600,000-round PBKDF2-SHA512 key derivation, Keyfile 2FA XOR mixing, 4 MB chunk STREAM AEAD, 12-byte counter IVs, 42-byte AAD binding, encrypted tail manifest, and backward compatibility with v2/v1.
 
 2. 🏗️ [**Architecture & System Components**](./PROJECT-MEMORY/ARCHITECTURE_AND_COMPONENTS.md)  
-   Layered architecture overview: Jetpack Compose Material 3 UI (`ui/`), ViewModel reactive state machine (`viewmodel/`), Android 14 `VaultForegroundService` (`service/`), `CryptoEngine` (`crypto/`), AndroidX Media3 ExoPlayer fullscreen cinema player (`VideoPlayerActivity`), dedicated cyber audio player (`AudioPlayerModal`), external document fallback (`FileViewerHelper`), `FileProvider` (`${applicationId}.fileprovider`), and automatic `MediaStore.Downloads` saving.
+   Layered architecture overview: Jetpack Compose Material 3 UI (`ui/`), ViewModel reactive state machine (`viewmodel/`), Android 14 `VaultForegroundService` (`service/`), `CryptoEngine` (`crypto/`), AndroidX Media3 ExoPlayer fullscreen cinema player (`VideoPlayerActivity`), dedicated cyber audio player (`AudioPlayerModal`), in-vault interactive image lightbox (`RichImageViewerModal`), in-vault syntax code & text reader (`RichCodeTextViewerModal`), external document fallback (`FileViewerHelper`), `FileProvider` (`${applicationId}.fileprovider`), and automatic `MediaStore.Downloads` saving.
 
 3. ⚡ [**Streaming Pipeline & Memory Bounds**](./PROJECT-MEMORY/STREAMING_AND_MEMORY_BOUNDS.md)  
    Memory bounding strategy keeping peak JVM heap under 150 MB across 5 GB+ datasets. Details why pull-based `V3DecryptedInputStream` was selected over asynchronous coroutine pipes to eliminate deadlocks and buffer overruns.
@@ -52,6 +52,8 @@ Comprehensive technical documentation is maintained under the [`PROJECT-MEMORY/`
 | **Background Processing** | Android 14 `ForegroundService` with `dataSync` type & partial wake lock |
 | **Video Player** | Fullscreen `VideoPlayerActivity` with auto-hiding cyber-dark controls, 10s skip, rotation lock, volume toggle, and Media3 ExoPlayer |
 | **Audio Player** | Dedicated `AudioPlayerModal` with rotating vinyl disc, 14-bar animated equalizer, interactive seekbar, loop toggle, and 1.0x-2.0x speed selector |
+| **Image Lightbox** | Dedicated `RichImageViewerModal` with interactive gesture zoom (0.5x–5x), double-tap 2.5x toggle, drag-to-pan, 90° rotation, dimension & size info, share, and public Downloads saving |
+| **Code & Text Viewer** | Dedicated `RichCodeTextViewerModal` with monospace formatting, line numbers gutter, word-wrap toggle, 1-tap clipboard copy toast, 50,000 char preview, share, and public Downloads saving |
 | **Document Fallback** | `FileViewerHelper.openWithExternalApp` & `shareFile` via dynamic `FileProvider` (`${applicationId}.fileprovider`) with `FLAG_GRANT_READ_URI_PERMISSION` |
 | **Output & Sharing** | Auto-saves `.zev` & `.zip` to `Downloads` (`MediaStore.Downloads`) + System Share Sheet via `FileProvider` (`${applicationId}.fileprovider`) |
 | **System Intents** | `ACTION_VIEW` (.zev files), `ACTION_SEND` / `ACTION_SEND_MULTIPLE` (share sheet) |

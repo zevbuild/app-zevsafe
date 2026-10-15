@@ -1,5 +1,14 @@
 # Changelog
 
+## Version 6.4.3 — October 15, 2026
+- `New` (`VaultBrowserScreen.kt`): Added dedicated in-vault **Interactive Image Lightbox (`RichImageViewerModal`)** featuring multi-touch pinch-to-zoom (0.5x to 5.0x), double-tap 2.5x toggle, drag-to-pan translation, 90° clockwise rotation, dimension & size info, system share sheet, and direct export to device Downloads.
+- `New` (`VaultBrowserScreen.kt`): Added dedicated in-vault **Monospace Code & Document Reader (`RichCodeTextViewerModal`)** featuring line numbers gutter, soft word-wrap toggle (`Wrap: ON / OFF`), 1-tap clipboard copy toast, system share sheet, and direct export to device Downloads.
+- `New` (`CryptoEngine.kt`): Added `isTextOrCodeFile()` extension recognizer supporting 30+ code, config, and document file extensions (`.txt`, `.md`, `.json`, `.xml`, `.yaml`, `.yml`, `.csv`, `.log`, `.js`, `.ts`, `.html`, `.css`, `.py`, `.kt`, `.java`, `.c`, `.cpp`, `.h`, `.cs`, `.rs`, `.go`, `.sh`, `.bat`, `.ps1`, `.sql`, `.env`, `.toml`, `.ini`, `.gradle`, `.properties`, `.conf`).
+- `Perf` (`CryptoEngine.kt`, `VaultViewModel.kt`): Expanded text content preview extraction limit from 2,000 characters to 50,000 characters (up to 1 MB) for full document and source code inspection.
+- `UI` (`VaultBrowserScreen.kt`): Updated file row item subtitles and click actions: clicking any image file immediately opens the interactive Lightbox; clicking any recognized code/text document opens the Monospace Code Viewer; audio and video trigger their respective dedicated players; and other files display preview actions with `FileProvider` export.
+- `Security`: Zero unencrypted non-volatile disk persistence — all preview extraction is targeted and ephemeral in application cache.
+- `Release`: Tagged release `v6.4.3` (build `34`).
+
 ## Version 6.4.2 — October 10, 2026
 - `UI` (`HomeScreen.kt`): Added frosted Cryptographic Trust Strip directly beneath the top brand header (`AES-256-GCM`, `600k PBKDF2`, `Air-Gapped`), matching the visual trust architecture of the official `zevsafe.pages.dev` web portal.
 - `New` (`EncryptScreen.kt`): Added One-Tap Strong Key Generator button generating 16-character high-entropy cryptographic master passwords using `SecureRandom`, auto-populating confirmation fields, and copying to the Android system clipboard.

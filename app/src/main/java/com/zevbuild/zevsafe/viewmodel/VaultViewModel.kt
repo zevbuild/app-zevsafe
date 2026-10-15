@@ -887,8 +887,8 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
             val cachedEntry = entry.copy(
                 sizeBytes = targetFile.length(),
                 localFileUri = Uri.fromFile(targetFile),
-                textContentPreview = if (entry.mimeType.startsWith("text/") && targetFile.length() < 256 * 1024) {
-                    try { targetFile.readText(Charsets.UTF_8).take(2000) } catch (_: Exception) { null }
+                textContentPreview = if (CryptoEngine.isTextOrCodeFile(targetFile.name, entry.mimeType) && targetFile.length() < 1024 * 1024) {
+                    try { targetFile.readText(Charsets.UTF_8).take(50000) } catch (_: Exception) { null }
                 } else entry.textContentPreview
             )
             val updatedFiles = currentResult.files.map {
@@ -957,8 +957,8 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         val existing = File(dir, targetEntry.name)
         if (existing.exists() && (existing.length() > 0 || targetEntry.sizeBytes == 0L)) {
             val mimeType = targetEntry.mimeType
-            val textPreview = if (mimeType.startsWith("text/") && existing.length() < 256 * 1024) {
-                try { existing.readText(Charsets.UTF_8).take(2000) } catch (_: Exception) { null }
+            val textPreview = if (CryptoEngine.isTextOrCodeFile(existing.name, mimeType) && existing.length() < 1024 * 1024) {
+                try { existing.readText(Charsets.UTF_8).take(50000) } catch (_: Exception) { null }
             } else null
             return targetEntry.copy(
                 sizeBytes = existing.length(),

@@ -1248,9 +1248,9 @@ object CryptoEngine {
         val ext = outputFile.extension.lowercase(Locale.ROOT)
         val mimeType = resolveMimeType(ext)
         var textPreview: String? = null
-        if (mimeType.startsWith("text/") && outputFile.length() < 256 * 1024) {
+        if (isTextOrCodeFile(outputFile.name, mimeType) && outputFile.length() < 1024 * 1024) {
             textPreview = try {
-                outputFile.readText(Charsets.UTF_8).take(2000)
+                outputFile.readText(Charsets.UTF_8).take(50000)
             } catch (_: Exception) {
                 null
             }
@@ -1406,13 +1406,28 @@ object CryptoEngine {
         return@withContext entries
     }
 
+    fun isTextOrCodeFile(name: String, mimeType: String = ""): Boolean {
+        val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val textExtensions = setOf(
+            "txt", "md", "json", "xml", "yaml", "yml", "csv", "log", "js", "ts",
+            "html", "css", "py", "kt", "java", "c", "cpp", "h", "cs", "rs", "go",
+            "sh", "bat", "ps1", "sql", "env", "toml", "ini", "gradle", "properties", "conf"
+        )
+        return mimeType.startsWith("text/") || mimeType == "application/json" ||
+                mimeType == "application/xml" || mimeType == "application/javascript" ||
+                textExtensions.contains(ext)
+    }
+
     private fun resolveMimeType(ext: String): String {
         return when (ext) {
-            "png", "jpg", "jpeg", "webp", "gif", "svg" -> "image/$ext"
-            "txt", "md", "json", "xml", "html", "js", "css", "kt", "java", "py", "c", "cpp" -> "text/plain"
+            "png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "ico", "avif" -> "image/$ext"
+            "txt", "md", "json", "xml", "html", "js", "ts", "css", "kt", "java", "py", "c", "cpp",
+            "yaml", "yml", "csv", "log", "rs", "go", "sh", "bat", "ps1", "sql", "env", "toml",
+            "ini", "gradle", "properties", "conf" -> "text/plain"
             "pdf" -> "application/pdf"
-            "mp4", "mkv", "mov", "webm" -> "video/$ext"
-            "mp3", "wav", "ogg", "flac" -> "audio/$ext"
+            "mp4", "mkv", "mov", "webm", "m4v", "avi", "3gp", "flv" -> "video/$ext"
+            "mp3", "wav", "ogg", "flac", "aac", "m4a", "opus" -> "audio/$ext"
+            "zip", "tar", "gz", "7z", "rar", "zev" -> "application/zip"
             else -> "application/octet-stream"
         }
     }

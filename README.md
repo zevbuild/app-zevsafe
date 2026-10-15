@@ -3,7 +3,7 @@
 > **by [zevbuild](https://github.com/zevbuild) · Encrypt and decrypt entire folders directly in your browser or native Android app — no server, no uploads, 100% private.**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Cloudflare%20Pages-8b5cf6?style=for-the-badge&logo=cloudflare)](https://zevsafe.pages.dev)
-[![Android APK](https://img.shields.io/badge/Android%20APK-Download%20v6.4.2-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/zevbuild/app-zevsafe/releases/latest)
+[![Android APK](https://img.shields.io/badge/Android%20APK-Download%20v6.4.3-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/zevbuild/app-zevsafe/releases/latest)
 [![Build Android APK](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml/badge.svg)](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml)
 [![Project Memory](https://img.shields.io/badge/Project%20Memory-Knowledge%20Base-8b5cf6?style=for-the-badge&logo=gitbook&logoColor=white)](PROJECT_MEMORY.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-10b981?style=for-the-badge)](LICENSE)
@@ -12,8 +12,8 @@
 
 ---
 
-> 🟢 **Current stable release — v6.4.2 (`.zev` format):** native Android streaming edition.  
-> PBKDF2-SHA512 · 600,000 iterations · 4 MB Chunked AES-256-GCM (`ZV3\0`) · Instant <100ms Vault Explorer · Embedded Media3 Cinema Player · Foreground Service · 100% Zero-Knowledge.  
+> 🟢 **Current stable release — v6.4.3 (`.zev` format):** native Android streaming edition.  
+> PBKDF2-SHA512 · 600,000 iterations · 4 MB Chunked AES-256-GCM (`ZV3\0`) · Instant <100ms Vault Explorer · Embedded Media3 Cinema Player · In-Vault Image Lightbox & Monospace Code Reader · Foreground Service · 100% Zero-Knowledge.  
 > 🧠 **Comprehensive System Architecture & Technical Specifications:** See [**`PROJECT_MEMORY.md`**](PROJECT_MEMORY.md) & [**`PROJECT-MEMORY/`**](PROJECT-MEMORY/).
 
 ---
@@ -32,6 +32,8 @@
 | ⚡ **Instant Vault Explorer & Single-File Extraction** | Reads encrypted tail manifest (<100ms) with stream-measured sizes; extracts individual files for preview via direct 4 MB chunk seeking (<100ms, <15 MB RAM) without decrypting entire vault |
 | 🎬 **Fullscreen Video Player (`VideoPlayerActivity`)** | Dedicated edge-to-edge Compose video player with auto-hiding cyber overlay, 10s seek, orientation lock, volume toggle, and Media3 ExoPlayer engine |
 | 🎵 **Cyber Audio Player (`AudioPlayerModal`)** | Glowing rotating vinyl album-art disc, 14-bar animated equalizer, seekbar timestamps, loop toggle, and speed selector (1.0x-2.0x) |
+| 🖼️ **In-Vault Image Lightbox (`RichImageViewerModal`)** | Interactive pinch-to-zoom (0.5x–5x), double-tap 2.5x toggle, drag-to-pan, 90° rotation, dimensions/size pill, share sheet, and direct Downloads saving |
+| 📝 **Monospace Code & Document Reader (`RichCodeTextViewerModal`)** | Syntax viewer for 30+ extensions (`.kt`, `.json`, `.py`, `.md`, `.js`, etc.) with line numbers gutter, wrap toggle, 1-tap copy, share, and Downloads saving |
 | 📄 **Document Viewer & Open-With Fallback** | Dynamic `FileProvider` intent launcher (`ACTION_VIEW`) with system chooser and share fallback for PDFs, office docs, and binary files |
 | 🔋 **Android Foreground Service** | Persistent notification (MB/s, ETA, progress bar) & WakeLock for 5 GB operations |
 | 📂 **Android System Intents** | Full `.zev` file association (`ACTION_VIEW`) + Share Target (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`) |
