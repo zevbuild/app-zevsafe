@@ -2,7 +2,7 @@
 
 > **by [zevbuild](https://github.com/zevbuild) · Encrypt and decrypt entire folders directly in your browser or native Android app — no server, no uploads, 100% private.**
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Cloudflare%20Pages-8b5cf6?style=for-the-badge&logo=cloudflare)](https://zevsafe.pages.dev)
+[![Official Web App](https://img.shields.io/badge/Official%20Web%20App-zevsafe.pages.dev-8b5cf6?style=for-the-badge&logo=cloudflare)](https://zevsafe.pages.dev)
 [![Android APK](https://img.shields.io/badge/Android%20APK-Download%20v6.4.3-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/zevbuild/app-zevsafe/releases/latest)
 [![Build Android APK](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml/badge.svg)](https://github.com/zevbuild/app-zevsafe/actions/workflows/build-apk.yml)
 [![Project Memory](https://img.shields.io/badge/Project%20Memory-Knowledge%20Base-8b5cf6?style=for-the-badge&logo=gitbook&logoColor=white)](PROJECT_MEMORY.md)
