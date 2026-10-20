@@ -7,6 +7,7 @@
 - `Perf` (`CryptoEngine.kt`, `VaultViewModel.kt`): Expanded text content preview extraction limit from 2,000 characters to 50,000 characters (up to 1 MB) for full document and source code inspection.
 - `UI` (`VaultBrowserScreen.kt`): Updated file row item subtitles and click actions: clicking any image file immediately opens the interactive Lightbox; clicking any recognized code/text document opens the Monospace Code Viewer; audio and video trigger their respective dedicated players; and other files display preview actions with `FileProvider` export.
 - `Fix` (`VaultViewModel.kt`): Changed `saveFileToDownloads` visibility from `private` to `public`, resolving Kotlin symbol compilation error in `VaultBrowserScreen.kt` and unblocking the CI/CD build pipeline.
+- `Docs` (`FORMAT.md`): Added formal ZevSafe Binary Container Specification (`FORMAT.md`) detailing exact 57-byte v3 header layout, 4 MB STREAM AEAD chunk framing, deterministic 12-byte IV & 42-byte AAD math, encrypted tail manifest catalog JSON schema, fast selective extraction algorithm, and v1/v2 backward compatibility standards.
 - `Security`: Zero unencrypted non-volatile disk persistence — all preview extraction is targeted and ephemeral in application cache.
 - `Release`: Tagged release `v6.4.3` (build `34`).
 

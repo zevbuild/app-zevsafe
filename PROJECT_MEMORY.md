@@ -36,6 +36,9 @@ Comprehensive technical documentation is maintained under the [`PROJECT-MEMORY/`
 5. 🛡️ [**Development & AI Agent Guidelines**](./PROJECT-MEMORY/DEVELOPMENT_AND_AI_GUIDELINES.md)  
    Non-negotiable security constraints: zero network permissions, zero telemetry, bounded memory usage, no disk plaintext leaks, bit-identical cross-platform compatibility, unit test verification, and mandatory Project Memory + Changelog synchronization.
 
+6. 📦 [**Binary Container Specification (`FORMAT.md`)**](./FORMAT.md)  
+   Authoritative formal bit-level `.zev` container specification shared across Android, Web, and Desktop: 57-byte header, 4 MB STREAM AEAD framing, deterministic 12-byte IV & 42-byte AAD binding, encrypted tail manifest catalog JSON schema, and selective extraction.
+
 ---
 
 ## 🔑 Core Technical Specifications Quick-Reference

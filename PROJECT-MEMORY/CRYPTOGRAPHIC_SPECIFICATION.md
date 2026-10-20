@@ -4,6 +4,8 @@
 > - Android Native App (`app-zevsafe`)
 > - Web Portal (`zevsafe` / `zevsafe.pages.dev`)
 > - Desktop PowerShell Streaming Engine (`tools/encrypt.ps1` / `tools/decrypt.ps1`)
+> 
+> *For the complete open binary standard and cross-platform specification, see [`FORMAT.md`](../FORMAT.md).*
 
 ---
 
@@ -12,11 +14,11 @@
 Every `.zev` v3 vault begins with a 57-byte binary container header structured as follows:
 
 ```text
-┌──────────────┬──────────────┬───────────┬──────────────────┬────────────────┬────────────────────────┐
-│ Magic 'ZV3\0'│ Version 0x03 │ Flags (1) │ Salt (32 Bytes)  │IV Prefix (12B) │ Manifest Offset (7B)   │
-│ 4 Bytes      │ 1 Byte       │ 1 Byte    │ CSPRNG Random    │ Base Nonce     │ Big-Endian UInt56      │
-└──────────────┴──────────────┴───────────┴──────────────────┴────────────────┴────────────────────────┘
-0              4              5           6                  38               50                       57
+┌──────────────┬──────────────┬───────────┬──────────────┬──────────────────┬────────────────┬────────────────────────┐
+│ Magic 'ZV3\0'│ Version 0x03 │ Flags (1) │ChunkSize (4B)│ Salt (32 Bytes)  │Base IV (7B)    │ Manifest Offset (8B)   │
+│ 4 Bytes      │ 1 Byte       │ 1 Byte    │ UInt32 BE    │ CSPRNG Random    │ 7B Base Nonce  │ Big-Endian UInt64      │
+└──────────────┴──────────────┴───────────┴──────────────┴──────────────────┴────────────────┴────────────────────────┘
+0              4              5           6              10                 42               49                       57
 ```
 
 ### Byte-by-Byte Field Breakdown
@@ -25,10 +27,11 @@ Every `.zev` v3 vault begins with a 57-byte binary container header structured a
 |---|---|---|---|---|
 | `0..3` | 4 Bytes | **Magic Identifier** | ASCII | Constant `ZV3\0` (`0x5A, 0x56, 0x33, 0x00`). Identifies the v3 stream format. |
 | `4` | 1 Byte | **Container Version** | Uint8 | Always `0x03` for the STREAM AEAD format. |
-| `5` | 1 Byte | **Vault Flags** | Bitmask | Bit 0 (`0x01`): Keyfile 2FA enabled.<br>Bit 1 (`0x02`): Multi-file / Folder archive.<br>Bits 2..7: Reserved (must be `0`). |
-| `6..37` | 32 Bytes | **CSPRNG Salt** | Binary | 256-bit cryptographically secure random salt generated via `java.security.SecureRandom`. |
-| `38..49` | 12 Bytes | **IV Prefix** | Binary | 96-bit base nonce. Bytes `0..7` form the random streaming prefix; bytes `8..11` form the initial counter base. |
-| `50..56` | 7 Bytes | **Manifest Offset** | Big-Endian Uint56 | Absolute byte offset pointing to the start of the encrypted tail catalog. Allows <100ms random-access catalog loading without parsing file chunks. |
+| `5` | 1 Byte | **Vault Flags** | Bitmask | Bit 0 (`0x01`): Keyfile 2FA enabled.<br>Bits 1..7: Reserved (must be `0`). |
+| `6..9` | 4 Bytes | **Chunk Size** | Big-Endian Uint32 | Size of uncompressed payload chunks (default 4,194,304 bytes = 4 MB). |
+| `10..41` | 32 Bytes | **CSPRNG Salt** | Binary | 256-bit cryptographically secure random salt generated via `java.security.SecureRandom`. |
+| `42..48` | 7 Bytes | **Base IV Prefix** | Binary | 7-byte CSPRNG random nonce prefix for deterministic per-chunk 12-byte IV construction. |
+| `49..56` | 8 Bytes | **Manifest Offset** | Big-Endian Uint64 | Absolute byte offset pointing to the start of the encrypted tail catalog. Allows <100ms random-access catalog loading without parsing file chunks. |
 
 ---
 

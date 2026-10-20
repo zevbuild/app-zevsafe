@@ -27,6 +27,7 @@
 | Feature | Details |
 |---|---|
 | 🔐 **v3 STREAM AEAD (`ZV3\0`)** | 4 MB chunked AES-256-GCM with per-chunk 12B counter IVs and 42B AAD container binding |
+| 📦 **Open Container Standard ([`FORMAT.md`](FORMAT.md))** | Formal bit-level container specification detailing 57-byte v3 headers, 4 MB STREAM AEAD framing, deterministic 12-byte IV & 42-byte AAD math, and tail manifest JSON schemas |
 | 🛡️ **PBKDF2-SHA512 (600,000 iters)** | Military-grade key stretching with 32-byte CSPRNG random salt |
 | 🗝️ **Keyfile 2FA (Physical 2nd Factor)** | SHA-256 fingerprint mixed into raw key bytes via bitwise XOR |
 | ⚡ **Instant Vault Explorer & Single-File Extraction** | Reads encrypted tail manifest (<100ms) with stream-measured sizes; extracts individual files for preview via direct 4 MB chunk seeking (<100ms, <15 MB RAM) without decrypting entire vault |
